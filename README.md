@@ -1,63 +1,171 @@
-# Next.js Framework Starter
+# i18n Manager
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/templates/tree/main/next-starter-template)
+A powerful application for managing internationalization (i18n) messages with CRUD operations, powered by Cloudflare D1, Workers AI, and BlueprintJS.
 
-<!-- dash-content-start -->
+## Features
 
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app). It's deployed on Cloudflare Workers as a [static website](https://developers.cloudflare.com/workers/static-assets/).
+- ✨ **Full CRUD operations** - Create, Read, Update, and Delete i18n messages
+- 🌍 **Auto-translation** - Leverage Cloudflare Workers AI for automatic translations
+- 📊 **Table view** - View all messages in an organized table
+- 🔍 **Filtering** - Filter messages by key or locale
+- 🎨 **BlueprintJS UI** - Modern, professional interface
 
-This template uses [OpenNext](https://opennext.js.org/) via the [OpenNext Cloudflare adapter](https://opennext.js.org/cloudflare), which works by taking the Next.js build output and transforming it, so that it can run in Cloudflare Workers.
+## Tech Stack
 
-<!-- dash-content-end -->
-
-Outside of this repo, you can start a new project with this template using [C3](https://developers.cloudflare.com/pages/get-started/c3/) (the `create-cloudflare` CLI):
-
-```bash
-npm create cloudflare@latest -- --template=cloudflare/templates/next-starter-template
-```
-
-A live public deployment of this template is available at [https://next-starter-template.templates.workers.dev](https://next-starter-template.templates.workers.dev)
+- **Frontend:** Next.js 15 with React 19
+- **Data Fetching:** SWR
+- **UI Components:** BlueprintJS
+- **ORM:** Drizzle ORM
+- **Database:** Cloudflare D1
+- **AI Translations:** Cloudflare Workers AI
+- **Deployment:** Cloudflare Workers
 
 ## Getting Started
 
-First, run:
+### Prerequisites
+
+- Node.js 18+ installed
+- Cloudflare account
+- Wrangler CLI installed globally
+
+### Installation
+
+1. Install dependencies:
 
 ```bash
-npm install
-# or
-yarn install
-# or
 pnpm install
-# or
-bun install
 ```
 
-Then run the development server (using the package manager of your choice):
+### Database Setup
+
+1. Create a D1 database:
 
 ```bash
-npm run dev
+wrangler d1 create i18n-messages-db
+```
+
+2. Update the `database_id` in `wrangler.jsonc` with the ID returned from the previous command.
+
+3. Run the Drizzle migration to create the schema:
+
+```bash
+pnpm drizzle-kit push
+```
+
+Or alternatively, run the SQL migration:
+
+```bash
+wrangler d1 execute i18n-messages-db --file=./migrations/0001_initial_schema.sql
+```
+
+### Development
+
+Run the development server:
+
+```bash
+pnpm dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Production Build
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+Build and deploy to Cloudflare:
 
-## Deploying To Production
+```bash
+# Build the application
+pnpm build
 
-| Command                           | Action                                       |
-| :-------------------------------- | :------------------------------------------- |
-| `npm run build`                   | Build your production site                   |
-| `npm run preview`                 | Preview your build locally, before deploying |
-| `npm run build && npm run deploy` | Deploy your production site to Cloudflare    |
-| `npm wrangler tail`               | View real-time logs for all Workers          |
+# Preview the build locally
+pnpm preview
 
-## Learn More
+# Deploy to Cloudflare
+pnpm deploy
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Usage
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Adding Messages
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
+1. Click the "Add Message" button
+2. Enter the message key (e.g., `welcome.message`)
+3. Enter the locale (e.g., `en`, `es`, `fr`)
+4. Enter the message text
+5. Click "Create"
+
+### Translating Messages
+
+1. Find a message you want to translate in the table
+2. Click the translate icon (🌐) on that message
+3. Enter the target locale (e.g., `es`, `fr`, `de`)
+4. The AI will automatically translate the message and save it
+
+### Editing Messages
+
+1. Click the edit icon (✏️) on any message
+2. Modify the message text
+3. Click "Update"
+
+### Filtering
+
+Use the filter inputs at the top to filter messages by:
+- **Key**: Filter by message key
+- **Locale**: Filter by locale code
+
+### Deleting Messages
+
+1. Click the delete icon (🗑️) on any message
+2. Confirm the deletion
+
+## API Endpoints
+
+- `GET /api/messages` - Get all messages (supports `?key=` and `?locale=` query params)
+- `POST /api/messages` - Create a new message
+- `PUT /api/messages` - Update an existing message
+- `DELETE /api/messages?id=<id>` - Delete a message
+- `POST /api/messages/translate` - Translate a message using AI
+
+## Database Schema
+
+The application uses Drizzle ORM with a single table `messages`. The schema is defined in `src/db/schema.ts`:
+
+```typescript
+export const messages = sqliteTable("messages", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  key: text("key").notNull(),
+  locale: text("locale").notNull(),
+  message: text("message").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).$default(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).$default(() => new Date()),
+});
+```
+
+### Nested Key Support
+
+The schema supports nested JSON structures using dot notation. For example:
+- Key: `common.loading` → JSON: `{ "common": { "loading": "Loading..." } }`
+- Key: `navigation.home` → JSON: `{ "navigation": { "home": "Home" } }`
+
+When you export via curl, the flat key-value pairs are automatically transformed into nested JSON objects.
+
+### Translation Completeness
+
+The application ensures all languages have the same structure:
+
+**Visual Indicators in UI:**
+- **Dashboard cards** show translation completeness per locale (green = 100%, red = <50%, orange = 50-99%)
+- **Missing badges** on keys show how many locales are missing that translation
+- **Percentage scores** show which languages need work
+
+**Rules:**
+- All keys must exist across all locales
+- The UI highlights incomplete translations
+- Export API returns nested JSON maintaining structure consistency
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+MIT

@@ -8,4 +8,12 @@ export default nextConfig;
 
 // added by create cloudflare to enable calling `getCloudflareContext()` in `next dev`
 import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
-initOpenNextCloudflareForDev();
+initOpenNextCloudflareForDev(
+{
+envFiles: [
+  ".env",
+  ".dev.vars",
+],
+
+}
+);
