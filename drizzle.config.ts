@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { defineConfig } from "drizzle-kit";
 
+
 export default defineConfig({
   schema: "./src/db/schema.ts",
   out: "./drizzle",
@@ -12,5 +13,3 @@ export default defineConfig({
     token: process.env.CLOUDFLARE_D1_TOKEN!,
   },
 });
-
-

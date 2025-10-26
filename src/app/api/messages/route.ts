@@ -2,7 +2,7 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { translations, translationKeys } from "@/db/schema";
-import { getDb } from "@/lib/db";
+import { getDb } from "@/db";
 
 /**
  * Export i18n messages as JSON files
@@ -13,14 +13,8 @@ import { getDb } from "@/lib/db";
  */
 export async function GET(request: Request) {
   try {
-    const context = getCloudflareContext();
-    const db = context?.env?.DB;
 
-    if (!db) {
-      return NextResponse.json({ error: "Database not available" }, { status: 500 });
-    }
-
-    const drizzleDb = getDb(db);
+    const drizzleDb = getDb();
     const url = new URL(request.url);
     const locale = url.searchParams.get("locale");
 

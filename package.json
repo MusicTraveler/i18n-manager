@@ -3,7 +3,7 @@
   "description": "Build a full-stack web application with Next.js.",
   "private": true,
   "cloudflare": {
-    "label": "Next.js Framework Starter",
+    "label": "i18n Manager",
     "products": [
       "Workers"
     ],
@@ -17,7 +17,7 @@
     "cf-typegen": "wrangler types --env-interface CloudflareEnv env.d.ts",
     "check": "npm run build && tsc",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
-    "dev": "next dev",
+    "dev": "next dev --turbopack --port 4077",
     "lint": "next lint",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "start": "next start",
@@ -38,6 +38,8 @@
     "@opennextjs/cloudflare": "1.11.0",
     "@tanstack/react-table": "^8.21.3",
     "@tanstack/react-virtual": "^3.13.12",
+    "@trpc/client": "^11.7.0",
+    "@trpc/server": "^11.7.0",
     "date-fns": "^4.1.0",
     "drizzle-kit": "^0.31.5",
     "drizzle-orm": "^0.44.7",
@@ -45,7 +47,9 @@
     "normalize.css": "^8.0.1",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "swr": "^2.3.6"
+    "superjson": "^2.2.3",
+    "swr": "^2.3.6",
+    "zod": "^4.1.12"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
