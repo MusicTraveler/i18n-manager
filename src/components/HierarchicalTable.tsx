@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, memo } from "react";
 import { useReactTable, getCoreRowModel, getExpandedRowModel, flexRender, type ColumnDef, type Row, type ExpandedState } from "@tanstack/react-table";
 import type { Message } from "@/lib/client";
-import { Button, Tag } from "@blueprintjs/core";
+import { Button, Tag, Checkbox } from "@blueprintjs/core";
 import styles from "./HierarchicalTable.module.css";
 
 type TableRow = {
@@ -27,7 +27,7 @@ interface HierarchicalTableProps {
   selectAllIndeterminate: boolean;
 }
 
-export function HierarchicalTable({
+const HierarchicalTableComponent = ({
   data,
   allLocales,
   selectedKeys,
@@ -37,31 +37,25 @@ export function HierarchicalTable({
   onAddRow,
   selectAllChecked,
   selectAllIndeterminate,
-}: HierarchicalTableProps) {
+}: HierarchicalTableProps) => {
   // Set initial expanded state to show all rows expanded by default
   const [expanded, setExpanded] = useState<ExpandedState>(true);
   const columns = useMemo<ColumnDef<TableRow>[]>(() => [
     {
       id: 'select',
       header: () => (
-        <input
-          type="checkbox"
+        <Checkbox
           checked={selectAllChecked}
-          ref={(input) => {
-            if (input) input.indeterminate = selectAllIndeterminate;
-          }}
+          indeterminate={selectAllIndeterminate}
           onChange={onSelectAll}
-          className={styles.checkboxHeaderInput}
         />
       ),
       cell: ({ row }) => {
         if (row.original.type === 'key') {
           return (
-            <input
-              type="checkbox"
+            <Checkbox
               checked={selectedKeys.has(row.original.id)}
-              onChange={(e) => onRowSelect(row.original.id, e.target.checked)}
-              className={styles.checkbox}
+              onChange={(e) => onRowSelect(row.original.id, e.currentTarget.checked)}
             />
           );
         }
@@ -218,5 +212,7 @@ export function HierarchicalTable({
       </table>
     </div>
   );
-}
+};
 
+// Memoize the component for better performance
+export const HierarchicalTable = memo(HierarchicalTableComponent);

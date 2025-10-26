@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Collapse, Button } from "@blueprintjs/core";
+import { Collapse, Button, Checkbox } from "@blueprintjs/core";
 import { MessageKeyRow } from "./MessageKeyRow";
 import type { Message } from "@/lib/client";
 import styles from "./CategorySection.module.css";
@@ -93,20 +93,16 @@ export function CategorySection({
         </div>
       </div>
 
-      <Collapse isOpen={isExpanded}>
+      <Collapse isOpen={isExpanded} keepChildrenMounted>
         <div className={styles.tableWrapper}>
           <table className={styles.table}>
             <thead>
               <tr className={styles.tableHeaderRow}>
                 {/* Checkbox Column */}
                 <th className={styles.checkboxHeader}>
-                  <input
-                    type="checkbox"
-                    className={styles.checkboxHeaderInput}
+                  <Checkbox
                     checked={selectAllChecked}
-                    ref={(input) => {
-                      if (input) input.indeterminate = selectAllIndeterminate;
-                    }}
+                    indeterminate={selectAllIndeterminate}
                     onChange={onSelectAll}
                   />
                 </th>

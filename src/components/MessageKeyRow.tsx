@@ -1,5 +1,6 @@
 import type { Message } from "@/lib/client";
 import type { KeyboardEvent } from "react";
+import { Checkbox } from "@blueprintjs/core";
 import styles from "./MessageKeyRow.module.css";
 
 interface MessageKeyRowProps {
@@ -30,11 +31,9 @@ export function MessageKeyRow({
     <tr className={styles.tableRow}>
       {/* Checkbox Column */}
       <td className={styles.checkboxCell}>
-        <input
-          type="checkbox"
+        <Checkbox
           checked={isSelected}
-          onChange={(e) => onSelect(fullKey, e.target.checked)}
-          className={styles.checkbox}
+          onChange={(e) => onSelect(fullKey, e.currentTarget.checked)}
         />
       </td>
       {/* Frozen Key Column */}

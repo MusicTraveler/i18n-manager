@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import useSWR, { mutate } from "swr";
-import { NonIdealState, Section, SectionCard, Button, Intent, Navbar, Alignment } from "@blueprintjs/core";
+import { NonIdealState, Section, SectionCard, Button, Intent, Navbar, Alignment, Collapse, Icon } from "@blueprintjs/core";
 import { trpc } from "@/lib/client";
 import type { Message } from "@/lib/client";
 import { MessageCompletenessStats } from "@/components/MessageCompletenessStats";
@@ -45,6 +45,7 @@ export default function Home() {
   const [filterKey, setFilterKey] = useState("");
   const [filterLocale, setFilterLocale] = useState("");
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
 
   const { data: messages = [], error, isLoading } = useSWR<Message[], Error>("messages", fetcher);
 
@@ -297,6 +298,49 @@ export default function Home() {
     }
   }, [selectedKeys]);
 
+  const categoryRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const [lastExpandedCategory, setLastExpandedCategory] = useState<string | null>(null);
+
+  const toggleCategory = useCallback((categoryId: string) => {
+    setExpandedCategories((prev) => {
+      const newSet = new Set(prev);
+      const wasCollapsed = !newSet.has(categoryId);
+      
+      if (newSet.has(categoryId)) {
+        newSet.delete(categoryId);
+        setLastExpandedCategory(null);
+      } else {
+        newSet.add(categoryId);
+        if (wasCollapsed) {
+          setLastExpandedCategory(categoryId);
+        }
+      }
+      return newSet;
+    });
+  }, []);
+
+  // Scroll to expanded category
+  useEffect(() => {
+    if (lastExpandedCategory) {
+      const element = categoryRefs.current.get(lastExpandedCategory);
+      if (element) {
+        setTimeout(() => {
+          element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 100);
+      }
+      setLastExpandedCategory(null);
+    }
+  }, [lastExpandedCategory]);
+
+  // Initialize expanded categories - start collapsed for better performance
+  useMemo(() => {
+    if (filteredTableData.length > 0 && expandedCategories.size === 0) {
+      // Start with just the first category expanded
+      if (filteredTableData.length > 0) {
+        setExpandedCategories(new Set([filteredTableData[0].id]));
+      }
+    }
+  }, [filteredTableData, expandedCategories.size]);
 
   return (
     <div className="bp6-dark" style={{ minHeight: "100vh" }}>
@@ -345,18 +389,116 @@ export default function Home() {
                 description={messages.length === 0 ? "Add your first message to get started!" : "Try adjusting your filters"}
               />
             ) : (
-              <div>
-                <HierarchicalTable
-                  data={filteredTableData}
-                  allLocales={allLocales}
-                  selectedKeys={selectedKeys}
-                  selectAllChecked={selectedKeys.size === getAllLeafKeys(filteredTableData).length && getAllLeafKeys(filteredTableData).length > 0}
-                  selectAllIndeterminate={selectedKeys.size > 0 && selectedKeys.size < getAllLeafKeys(filteredTableData).length}
-                  onEdit={handleEdit}
-                  onAddRow={handleAddRow}
-                  onRowSelect={handleRowSelect}
-                  onSelectAll={handleSelectAll}
-                />
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                {filteredTableData.map((topLevelNode) => {
+                  const isExpanded = expandedCategories.has(topLevelNode.id);
+                  const leafKeys = getAllLeafKeys([topLevelNode]);
+                  const selectedCount = leafKeys.filter(k => selectedKeys.has(k)).length;
+                  
+                  return (
+                    <div 
+                      key={topLevelNode.id} 
+                      ref={(el) => {
+                        if (el) {
+                          categoryRefs.current.set(topLevelNode.id, el);
+                        } else {
+                          categoryRefs.current.delete(topLevelNode.id);
+                        }
+                      }}
+                      style={{ background: "#394b59", borderRadius: "4px", overflow: "hidden" }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: "12px 16px",
+                          borderBottom: isExpanded ? "1px solid #30404d" : "none",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "12px",
+                            cursor: "pointer",
+                            background: "transparent",
+                            border: "none",
+                            padding: 0,
+                            flex: 1,
+                            textAlign: "left",
+                            outline: "none",
+                          }}
+                          onClick={() => toggleCategory(topLevelNode.id)}
+                        >
+                          <Icon icon={isExpanded ? "chevron-down" : "chevron-right"} color="#A7B6C2" />
+                          <span style={{ color: "white", fontSize: "16px", fontWeight: "bold" }}>
+                            {topLevelNode.label}
+                          </span>
+                          <span style={{ color: "#8A9BA8", fontSize: "13px" }}>
+                            ({leafKeys.length} {leafKeys.length === 1 ? 'key' : 'keys'})
+                          </span>
+                          {selectedCount > 0 && (
+                            <span style={{ color: "#48AFF0", fontSize: "13px", fontWeight: "bold" }}>
+                              {selectedCount} selected
+                            </span>
+                          )}
+                        </button>
+                        {topLevelNode.type === 'category' && (
+                          <Button
+                            small
+                            icon="add"
+                            minimal
+                            intent="none"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAddRow(topLevelNode.label);
+                            }}
+                            title="Add key to this category"
+                          />
+                        )}
+                      </div>
+                      <Collapse isOpen={isExpanded} keepChildrenMounted={false} transitionDuration={150}>
+                        {isExpanded && topLevelNode.children && (
+                          <div style={{ padding: "0" }}>
+                            <HierarchicalTable
+                              data={topLevelNode.children}
+                              allLocales={allLocales}
+                              selectedKeys={selectedKeys}
+                              selectAllChecked={selectedCount === leafKeys.length && leafKeys.length > 0}
+                              selectAllIndeterminate={selectedCount > 0 && selectedCount < leafKeys.length}
+                              onEdit={handleEdit}
+                              onAddRow={handleAddRow}
+                              onRowSelect={handleRowSelect}
+                              onSelectAll={() => {
+                                if (selectedCount === leafKeys.length) {
+                                  // Deselect all in this category
+                                  setSelectedKeys(prev => {
+                                    const newSet = new Set(prev);
+                                    for (const k of leafKeys) {
+                                      newSet.delete(k);
+                                    }
+                                    return newSet;
+                                  });
+                                } else {
+                                  // Select all in this category
+                                  setSelectedKeys(prev => {
+                                    const newSet = new Set(prev);
+                                    for (const k of leafKeys) {
+                                      newSet.add(k);
+                                    }
+                                    return newSet;
+                                  });
+                                }
+                              }}
+                            />
+                          </div>
+                        )}
+                      </Collapse>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
