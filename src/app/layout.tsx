@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import 'normalize.css';
-import "@/styles/globals.css";
+import "@/styles/globals.scss";
 import "@blueprintjs/core/lib/css/blueprint.css";
-import "@blueprintjs/icons/lib/css/blueprint-icons.css";
 
 export const metadata: Metadata = {
   title: "i18n Manager",
@@ -15,7 +14,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className="bp6-dark">
       <body className="bp6-dark">
         {children}
       </body>

@@ -13,6 +13,50 @@ export const router = t.router;
 export const publicProcedure = t.procedure;
 
 export const appRouter = router({
+  // Get all available languages
+  getLanguages: publicProcedure.query(async () => {
+    const drizzleDb = getDbDirect();
+    const result = await drizzleDb
+      .select({
+        code: languages.code,
+        name: languages.name,
+      })
+      .from(languages)
+      .orderBy(languages.code);
+    
+    return result;
+  }),
+
+  // Create a new language
+  createLanguage: publicProcedure
+    .input(
+      z.object({
+        code: z.string().min(2).max(2),
+        name: z.string(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const drizzleDb = getDbDirect();
+      const { code, name } = input;
+
+      // Check if language already exists
+      const existing = await drizzleDb
+        .select()
+        .from(languages)
+        .where(eq(languages.code, code))
+        .limit(1);
+
+      if (existing.length > 0) {
+        throw new Error("Language with this code already exists");
+      }
+
+      await drizzleDb
+        .insert(languages)
+        .values({ code, name });
+
+      return { success: true };
+    }),
+
   // Get all messages with optional filters
   list: publicProcedure
     .input(
@@ -189,6 +233,39 @@ export const appRouter = router({
       await drizzleDb
         .delete(translations)
         .where(eq(translations.id, id));
+
+      return { success: true };
+    }),
+
+  // Delete all translations for a specific key (across all languages)
+  deleteByKey: publicProcedure
+    .input(z.object({ key: z.string() }))
+    .mutation(async ({ input }) => {
+      const drizzleDb = getDbDirect();
+      const { key } = input;
+
+      // First, find the translation key
+      const keyRecords = await drizzleDb
+        .select()
+        .from(translationKeys)
+        .where(eq(translationKeys.keyPath, key))
+        .limit(1);
+
+      if (keyRecords.length === 0) {
+        return { success: false, message: "Key not found" };
+      }
+
+      const keyId = keyRecords[0].id;
+
+      // Delete all translations for this key
+      await drizzleDb
+        .delete(translations)
+        .where(eq(translations.keyId, keyId));
+
+      // Delete the translation key itself
+      await drizzleDb
+        .delete(translationKeys)
+        .where(eq(translationKeys.id, keyId));
 
       return { success: true };
     }),

@@ -1,0 +1,18 @@
+@use "@blueprintjs/core/lib/scss/variables" as bp;
+@import "@blueprintjs/select/lib/css/blueprint-select.css";
+@import "@blueprintjs/icons/lib/css/blueprint-icons.css";
+
+/* Ensure dark mode background */
+.bp6-dark {
+  background-color: bp.$pt-dark-app-background-color;
+}
+
+/* Override any light mode backgrounds */
+body.bp6-dark {
+  background-color: bp.$pt-dark-app-background-color;
+}
+
+/* Ensure html tag is also dark */
+html.bp6-dark {
+  background-color: bp.$pt-dark-app-background-color;
+}

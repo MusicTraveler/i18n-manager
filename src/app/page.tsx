@@ -1,27 +1,17 @@
 "use client";
 
-import { useState, useMemo, useCallback, ChangeEvent } from "react";
-import useSWR from "swr";
-import { mutate } from "swr";
-import {
-  useReactTable,
-  getCoreRowModel,
-  flexRender,
-  ColumnDef,
-} from "@tanstack/react-table";
-import {
-  Button,
-  Card,
-  Collapse,
-  Dialog,
-  FormGroup,
-  InputGroup,
-  Intent,
-  NonIdealState,
-  TextArea,
-} from "@blueprintjs/core";
+import { useState, useMemo, useCallback, useEffect } from "react";
+import useSWR, { mutate } from "swr";
+import { NonIdealState, Section, SectionCard, Button, Intent } from "@blueprintjs/core";
 import { trpc } from "@/lib/client";
 import type { Message } from "@/lib/client";
+import { MessageCompletenessStats } from "@/components/MessageCompletenessStats";
+import { FiltersSection } from "@/components/FiltersSection";
+import { CategorySection } from "@/components/CategorySection";
+import { MessageDialog } from "@/components/MessageDialog";
+import { LanguageSelector } from "@/components/LanguageSelector";
+import { ImportMessagesDialog } from "@/components/ImportMessagesDialog";
+import { AddLanguageDialog } from "@/components/AddLanguageDialog";
 
 const fetcher = async (): Promise<Message[]> => {
   const data = await trpc.list.query({});
@@ -37,71 +27,14 @@ type KeyRow = {
   missingLocales: string[];
 };
 
-type NestedKey = {
-  category: string;
-  subcategory?: string;
-  fullKey: string;
-  messages: Message[];
-};
-
-// TanStack Table component for subcategory tables
-function SubcategoryTable({ rows, columns }: { rows: KeyRow[]; columns: ColumnDef<KeyRow>[] }) {
-  const table = useReactTable({
-    data: rows,
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-  });
-
-  return (
-    <div style={{ overflowX: "auto", marginTop: "8px" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <thead>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <tr key={headerGroup.id} style={{ borderBottom: "1px solid #8f99a3" }}>
-              {headerGroup.headers.map((header) => (
-                <th
-                  key={header.id}
-                  style={{
-                    padding: "10px",
-                    textAlign: "left",
-                    color: "white",
-                    minWidth: typeof header.column.columnDef.size === "number" ? `${header.column.columnDef.size}px` : "auto",
-                  }}
-                >
-                  {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
-                </th>
-              ))}
-            </tr>
-          ))}
-        </thead>
-        <tbody>
-          {table.getRowModel().rows.map((row) => (
-            <tr key={row.id} style={{ borderBottom: "1px solid #405364" }}>
-              {row.getVisibleCells().map((cell) => (
-                <td
-                  key={cell.id}
-                  style={{
-                    padding: "8px",
-                  }}
-                >
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 export default function Home() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [isAddLanguageDialogOpen, setIsAddLanguageDialogOpen] = useState(false);
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
-  const [formData, setFormData] = useState({ key: "", locale: "", message: "" });
   const [filterKey, setFilterKey] = useState("");
   const [filterLocale, setFilterLocale] = useState("");
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
 
   const { data: messages = [], error, isLoading } = useSWR<Message[], Error>("messages", fetcher);
 
@@ -110,6 +43,12 @@ export default function Home() {
     const locales = new Set(messages.map((m) => m.locale));
     return Array.from(locales).sort();
   }, [messages]);
+
+  // Filter locales based on selected languages
+  const displayedLocales = useMemo(() => {
+    if (selectedLanguages.length === 0) return allLocales;
+    return allLocales.filter(locale => selectedLanguages.includes(locale));
+  }, [allLocales, selectedLanguages]);
 
   // Transform messages into table rows with locales as columns
   const tableRows = useMemo(() => {
@@ -135,9 +74,9 @@ export default function Home() {
       keyMap.get(msg.key)!.messagesByLocale.set(msg.locale, msg);
     }
 
-    // Calculate missing locales for each key
+    // Calculate missing locales for each key (based on displayed locales)
     for (const row of keyMap.values()) {
-      row.missingLocales = allLocales.filter((l) => !row.messagesByLocale.has(l));
+      row.missingLocales = displayedLocales.filter((l) => !row.messagesByLocale.has(l));
     }
 
     return Array.from(keyMap.values()).sort((a, b) => {
@@ -187,6 +126,14 @@ export default function Home() {
     return categories;
   }, [filteredRows]);
 
+  // Update selected languages when allLocales changes (on initial load)
+  useEffect(() => {
+    if (allLocales.length > 0 && selectedLanguages.length === 0) {
+      setSelectedLanguages(allLocales);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allLocales]);
+
   // Calculate completeness stats
   const allKeysSet = useMemo(() => new Set(messages.map((m) => m.key)), [messages]);
   const completenessStats = useMemo(() => {
@@ -206,192 +153,62 @@ export default function Home() {
     });
   }, [messages, allLocales, allKeysSet]);
 
-  const toggleCategory = (category: string) => {
-    const newExpanded = new Set(expandedCategories);
-    if (newExpanded.has(category)) {
-      newExpanded.delete(category);
-    } else {
-      newExpanded.add(category);
-    }
-    setExpandedCategories(newExpanded);
-  };
-
-  const handleSave = async () => {
-    try {
-      if (editingMessage) {
-        await trpc.update.mutate({
-          id: editingMessage.id,
-          key: formData.key,
-          locale: formData.locale,
-          message: formData.message,
-        });
-      } else {
-        await trpc.create.mutate(formData);
-      }
-      setIsDialogOpen(false);
-      setFormData({ key: "", locale: "", message: "" });
-      setEditingMessage(null);
-      await mutate("messages");
-    } catch (error) {
-      console.error("Error saving message:", error);
-      const message = error instanceof Error ? error.message : "Failed to save message";
-      alert(message);
-    }
-  };
-
   const handleEdit = useCallback((message: Message) => {
     setEditingMessage(message);
-    setFormData({ key: message.key, locale: message.locale, message: message.message });
     setIsDialogOpen(true);
   }, []);
 
-  const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this message?")) return;
+  const handleDelete = useCallback(async (fullKey: string) => {
     try {
-      await trpc.delete.mutate({ id });
+      await trpc.deleteByKey.mutate({ key: fullKey });
       await mutate("messages");
     } catch (error) {
-      console.error("Error deleting message:", error);
-      alert("Failed to delete message");
+      console.error("Error deleting messages:", error);
+      alert("Failed to delete message key");
     }
-  };
-
-  // Create TanStack Table columns
-  const columns: ColumnDef<KeyRow>[] = useMemo(() => {
-    const localeColumns: ColumnDef<KeyRow>[] = allLocales.map((locale) => ({
-      id: locale,
-      header: locale.toUpperCase(),
-      cell: ({ row }) => {
-        const msg = row.original.messagesByLocale.get(locale);
-        return (
-          <div style={{ color: msg ? "white" : "#D9822B", maxWidth: "200px", wordBreak: "break-word" }}>
-            {msg ? msg.message : "—"}
-          </div>
-        );
-      },
-      size: 150,
-      minSize: 150,
-      maxSize: 300,
-    }));
-
-    return [
-      {
-        id: "key",
-        header: "Key",
-        cell: ({ row }) => (
-          <div style={{ position: "relative" }}>
-            <span style={{ color: "white" }}>{row.original.keyName}</span>
-            {row.original.missingLocales.length > 0 && (
-              <span
-                style={{
-                  position: "absolute",
-                  top: "-2px",
-                  right: "-2px",
-                  background: "#D9822B",
-                  color: "white",
-                  fontSize: "10px",
-                  padding: "2px 6px",
-                  borderRadius: "10px",
-                }}
-                title={`Missing in: ${row.original.missingLocales.join(", ")}`}
-              >
-                {row.original.missingLocales.length}
-              </span>
-            )}
-          </div>
-        ),
-        size: 200,
-        enableResizing: true,
-      },
-      ...localeColumns,
-      {
-        id: "actions",
-        header: () => null,
-        cell: ({ row }) => {
-          const firstMessage = row.original.messagesByLocale.size > 0 
-            ? Array.from(row.original.messagesByLocale.values())[0] 
-            : null;
-          
-          return (
-            <div style={{ display: "flex", gap: "5px" }}>
-              {firstMessage && (
-                <Button
-                  small
-                  icon="edit"
-                  onClick={() => handleEdit(firstMessage)}
-                />
-              )}
-            </div>
-          );
-        },
-        size: 100,
-        enableResizing: false,
-      },
-    ];
-  }, [allLocales, handleEdit]);
+  }, []);
 
   return (
     <div className="bp6-dark" style={{ minHeight: "100vh", padding: "20px" }}>
-      <div id="i18n-manager-section">
+      <Section id="i18n-manager-section" suppressHydrationWarning>
         <div style={{ marginBottom: "20px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
             <h1 style={{ margin: 0, color: "white" }}>i18n Manager</h1>
-            <Button intent={Intent.PRIMARY} icon="add" onClick={() => setIsDialogOpen(true)}>
-              Add Message
-            </Button>
+            <div style={{ display: "flex", gap: "10px" }}>
+              <Button intent="none" icon="globe-network" onClick={() => setIsAddLanguageDialogOpen(true)}>
+                Add Language
+              </Button>
+              <Button intent="none" icon="import" onClick={() => setIsImportDialogOpen(true)}>
+                Import
+              </Button>
+              <Button intent={Intent.PRIMARY} icon="add" onClick={() => setIsDialogOpen(true)}>
+                Add Message
+              </Button>
+            </div>
           </div>
-          
-          {/* Translation Completeness */}
-          {messages.length > 0 && (
-            <Card style={{ background: "#2b3d52", padding: "15px", marginBottom: "20px" }}>
-              <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(completenessStats.length, 6)}, 1fr)`, gap: "10px" }}>
-                {completenessStats.map((stat) => (
-                  <div
-                    key={stat.locale}
-                    style={{
-                      padding: "10px",
-                      background: stat.percentage === 100 ? "#0F9960" : stat.percentage < 50 ? "#DB3737" : "#D9822B",
-                      borderRadius: "4px",
-                      textAlign: "center",
-                    }}
-                  >
-                    <div style={{ color: "white", fontWeight: "bold", marginBottom: "5px" }}>
-                      {stat.locale.toUpperCase()}
-                    </div>
-                    <div style={{ color: "white", fontSize: "14px" }}>
-                      {stat.count} / {stat.total} ({stat.percentage}%)
-                    </div>
-                    {stat.missing > 0 && (
-                      <div style={{ color: "white", fontSize: "12px", marginTop: "5px" }}>
-                        {stat.missing} missing
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </Card>
+
+          {allLocales.length > 0 && (
+            <div style={{ marginBottom: "15px" }}>
+              <LanguageSelector
+                languages={allLocales}
+                selectedLanguages={selectedLanguages}
+                onLanguagesChange={setSelectedLanguages}
+              />
+            </div>
           )}
+          
+          <MessageCompletenessStats messages={messages} stats={completenessStats} />
         </div>
 
-        <div>
-          <div style={{ marginBottom: "20px", display: "flex", gap: "10px" }}>
-            <InputGroup
-              placeholder="Filter by key..."
-              value={filterKey}
-              onChange={(e) => setFilterKey(e.target.value)}
-              leftIcon="search"
-              style={{ flex: 1 }}
-            />
-            <InputGroup
-              placeholder="Filter by locale..."
-              value={filterLocale}
-              onChange={(e) => setFilterLocale(e.target.value)}
-              leftIcon="globe-network"
-              style={{ width: "200px" }}
-            />
-          </div>
+        <SectionCard>
+          <FiltersSection
+            filterKey={filterKey}
+            filterLocale={filterLocale}
+            onFilterKeyChange={setFilterKey}
+            onFilterLocaleChange={setFilterLocale}
+          />
 
-          <Card style={{ background: "#2b3d52", padding: "10px" }}>
+          <div style={{ background: "#2b3d52", padding: "20px", borderRadius: "4px" }}>
             {isLoading ? (
               <div style={{ padding: "20px", textAlign: "center", color: "white" }}>Loading...</div>
             ) : error ? (
@@ -404,113 +221,47 @@ export default function Home() {
               />
             ) : (
               <div>
-                {/* Nested View by Category */}
-                {Array.from(filteredGroupedRows.entries()).map(([category, subcategories]) => {
-                  const isExpanded = expandedCategories.has(category);
-                  const totalKeys = Array.from(subcategories.values()).flat().length;
-                  
-                  return (
-                    <div key={category} style={{ marginBottom: "10px" }}>
-                      <div
-                        style={{
-                          padding: "10px",
-                          background: "#364552",
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "10px",
-                          borderRadius: "4px",
-                        }}
-                        onClick={() => toggleCategory(category)}
-                      >
-                        <span style={{ color: "white", fontWeight: "bold" }}>{isExpanded ? "▼" : "▶"}</span>
-                        <span style={{ color: "white", fontWeight: "bold", textTransform: "capitalize" }}>
-                          {category} ({totalKeys} keys)
-                        </span>
-                      </div>
-
-                      <Collapse isOpen={isExpanded}>
-                        <div style={{ marginLeft: "20px", marginTop: "10px" }}>
-                          {Array.from(subcategories.entries()).map(([subcategory, rows]) => {
-                            if (rows.length === 0) return null;
-
-                            return (
-                              <div key={subcategory} style={{ marginBottom: "15px" }}>
-                                {subcategory !== "_root" && (
-                                  <div style={{ padding: "8px", background: "#2b3d52", color: "white", fontWeight: "bold", borderRadius: "4px" }}>
-                                    {subcategory}
-                                  </div>
-                                )}
-                                <SubcategoryTable rows={rows} columns={columns} />
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </Collapse>
-                    </div>
-                  );
-                })}
+                {Array.from(filteredGroupedRows.entries()).map(([category, subcategories]) => (
+                  <CategorySection
+                    key={category}
+                    category={category}
+                    subcategories={subcategories}
+                    allLocales={displayedLocales}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                  />
+                ))}
               </div>
             )}
-          </Card>
-        </div>
-      </div>
+          </div>
+        </SectionCard>
+      </Section>
 
-      <Dialog
+      <MessageDialog
         isOpen={isDialogOpen}
+        editingMessage={editingMessage}
         onClose={() => {
           setIsDialogOpen(false);
           setEditingMessage(null);
-          setFormData({ key: "", locale: "", message: "" });
         }}
-        title={editingMessage ? "Edit Message" : "Add Message"}
-        style={{ width: "600px" }}
-      >
-        <div style={{ padding: "20px" }}>
-          <FormGroup label="Key" labelInfo="(required)">
-            <InputGroup
-              value={formData.key}
-              onChange={(e) => setFormData({ ...formData, key: e.target.value })}
-              placeholder="message.key or category.key"
-              disabled={!!editingMessage}
-            />
-          </FormGroup>
+        onSuccess={() => {}}
+      />
 
-          <FormGroup label="Locale" labelInfo="(required)">
-            <InputGroup
-              value={formData.locale}
-              onChange={(e) => setFormData({ ...formData, locale: e.target.value })}
-              placeholder="en"
-              disabled={!!editingMessage}
-            />
-          </FormGroup>
+      <ImportMessagesDialog
+        isOpen={isImportDialogOpen}
+        onClose={() => setIsImportDialogOpen(false)}
+        onSuccess={() => {
+          console.log("Import successful");
+        }}
+      />
 
-          <FormGroup label="Message" labelInfo="(required)">
-            <TextArea
-              value={formData.message}
-              onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setFormData({ ...formData, message: e.target.value })}
-              placeholder="The actual message text"
-              rows={4}
-              fill
-            />
-          </FormGroup>
-
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "20px" }}>
-            <Button
-              onClick={() => {
-                setIsDialogOpen(false);
-                setEditingMessage(null);
-                setFormData({ key: "", locale: "", message: "" });
-              }}
-            >
-              Cancel
-            </Button>
-            <Button intent={Intent.PRIMARY} onClick={handleSave}>
-              {editingMessage ? "Update" : "Create"}
-            </Button>
-          </div>
-        </div>
-      </Dialog>
+      <AddLanguageDialog
+        isOpen={isAddLanguageDialogOpen}
+        onClose={() => setIsAddLanguageDialogOpen(false)}
+        onSuccess={() => {
+          console.log("Language added successfully");
+        }}
+      />
     </div>
   );
 }
