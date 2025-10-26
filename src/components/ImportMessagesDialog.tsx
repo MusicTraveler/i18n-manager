@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Dialog, Button, Intent, FileInput, Callout, MenuItem } from "@blueprintjs/core";
-import { Select } from "@blueprintjs/select";
+import { Select, ItemRendererProps } from "@blueprintjs/select";
 import { trpc } from "@/lib/client";
 import { mutate } from "swr";
 
@@ -170,11 +170,11 @@ export function ImportMessagesDialog({ isOpen, onClose, onSuccess }: ImportMessa
     }
   };
 
-  const renderLocale = (locale: string) => (
+  const renderLocale = (locale: string, { handleClick }: ItemRendererProps) => (
     <MenuItem
       key={locale}
       text={locale.toUpperCase()}
-      onClick={() => setSelectedLocale(locale)}
+      onClick={handleClick}
     />
   );
 
