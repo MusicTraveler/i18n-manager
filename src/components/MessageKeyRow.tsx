@@ -1,6 +1,7 @@
 import { Button } from "@blueprintjs/core";
 import type { Message } from "@/lib/client";
-import type { MouseEvent, KeyboardEvent } from "react";
+import type { KeyboardEvent } from "react";
+import styles from "./MessageKeyRow.module.css";
 
 interface MessageKeyRowProps {
   fullKey: string;
@@ -28,23 +29,14 @@ export function MessageKeyRow({
     : null;
 
   return (
-    <tr style={{ borderBottom: "1px solid #405364" }}>
-      {/* Key Column */}
-      <td style={{ padding: "12px", verticalAlign: "top" }}>
-        <div style={{ position: "relative" }}>
-          <code style={{ color: "white", fontSize: "13px", fontFamily: "monospace" }}>{keyName}</code>
+    <tr className={styles.tableRow}>
+      {/* Frozen Key Column */}
+      <td className={styles.frozenKeyCell}>
+        <div className={styles.keyCellContent}>
+          <code className={styles.keyName}>{keyName}</code>
           {missingLocales.length > 0 && (
             <span
-              style={{
-                position: "absolute",
-                top: "-4px",
-                right: "-4px",
-                background: "#D9822B",
-                color: "white",
-                fontSize: "10px",
-                padding: "2px 6px",
-                borderRadius: "10px",
-              }}
+              className={styles.missingBadge}
               title={`Missing in: ${missingLocales.join(", ")}`}
             >
               {missingLocales.length}
@@ -61,24 +53,13 @@ export function MessageKeyRow({
         return (
           <td
             key={locale}
-            style={{
-              padding: "12px",
-              verticalAlign: "top",
-              width: "250px",
-            }}
+            className={styles.localeCell}
           >
+            {/* biome-ignore lint/a11y/noStaticElementInteractions: Using div with role for editable message content */}
             <div 
               role={msg ? "button" : undefined}
               tabIndex={msg ? 0 : undefined}
-              style={{ 
-                color: isMissing ? "#D9822B" : "white", 
-                wordBreak: "break-word",
-                cursor: msg ? "pointer" : "default",
-                padding: msg ? "4px" : "0",
-                borderRadius: "4px",
-                transition: "background-color 0.2s",
-                outline: "none",
-              }}
+              className={isMissing ? styles.localeContentDisabled : styles.localeContent}
               onDoubleClick={() => {
                 if (msg) {
                   onEdit(msg);
@@ -90,16 +71,6 @@ export function MessageKeyRow({
                   onEdit(msg);
                 }
               }}
-              onMouseEnter={(e: MouseEvent<HTMLDivElement>) => {
-                if (msg) {
-                  e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.1)";
-                }
-              }}
-              onMouseLeave={(e: MouseEvent<HTMLDivElement>) => {
-                if (msg) {
-                  e.currentTarget.style.backgroundColor = "transparent";
-                }
-              }}
               title={msg ? "Double-click to edit" : undefined}
             >
               {isMissing ? "—" : msg.message}
@@ -108,9 +79,9 @@ export function MessageKeyRow({
         );
       })}
 
-      {/* Actions Column */}
-      <td style={{ padding: "12px", verticalAlign: "top" }}>
-        <div style={{ display: "flex", gap: "5px" }}>
+      {/* Frozen Actions Column */}
+      <td className={styles.frozenActionsCell}>
+        <div className={styles.actionsContainer}>
           {firstMessage && (
             <>
               <Button

@@ -1,32 +1,32 @@
 # i18n Manager
 
-A powerful application for managing internationalization (i18n) messages with CRUD operations, powered by Cloudflare D1, Workers AI, and BlueprintJS.
+A powerful application for managing internationalization (i18n) messages with CRUD operations, powered by PostgreSQL and Kysely.
 
 ## Features
 
 - ✨ **Full CRUD operations** - Create, Read, Update, and Delete i18n messages
-- 🌍 **Auto-translation** - Leverage Cloudflare Workers AI for automatic translations
+- 🌍 **Auto-translation** - AI-powered automatic translations
 - 📊 **Table view** - View all messages in an organized table
 - 🔍 **Filtering** - Filter messages by key or locale
 - 🎨 **BlueprintJS UI** - Modern, professional interface
+- 🚀 **Optimized Performance** - Recursive CTE views for fast hierarchical key lookup
 
 ## Tech Stack
 
 - **Frontend:** Next.js 15 with React 19
 - **Data Fetching:** SWR
 - **UI Components:** BlueprintJS
-- **ORM:** Drizzle ORM
-- **Database:** Cloudflare D1
-- **AI Translations:** Cloudflare Workers AI
-- **Deployment:** Cloudflare Workers
+- **Query Builder:** Kysely
+- **Database:** PostgreSQL
+- **Deployment:** Railway
 
 ## Getting Started
 
 ### Prerequisites
 
 - Node.js 18+ installed
-- Cloudflare account
-- Wrangler CLI installed globally
+- PostgreSQL database (local or hosted on Railway)
+- pnpm installed
 
 ### Installation
 
@@ -38,24 +38,31 @@ pnpm install
 
 ### Database Setup
 
-1. Create a D1 database:
+1. Create a PostgreSQL database (or use Railway):
 
 ```bash
-wrangler d1 create i18n-messages-db
+# Local PostgreSQL
+createdb i18n-manager
+
+# Or use Railway to create a database
 ```
 
-2. Update the `database_id` in `wrangler.jsonc` with the ID returned from the previous command.
-
-3. Run the Drizzle migration to create the schema:
+2. Set your database connection string in `.env`:
 
 ```bash
-pnpm drizzle-kit push
+DATABASE_URL=postgresql://user:password@localhost:5432/i18n-manager
 ```
 
-Or alternatively, run the SQL migration:
+3. Run the migrations to create the schema:
 
 ```bash
-wrangler d1 execute i18n-messages-db --file=./migrations/0001_initial_schema.sql
+pnpm db:migrate
+```
+
+4. Generate TypeScript types from your database:
+
+```bash
+pnpm db:generate-types
 ```
 
 ### Development
@@ -70,17 +77,14 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 ### Production Build
 
-Build and deploy to Cloudflare:
+Build the application:
 
 ```bash
 # Build the application
 pnpm build
 
-# Preview the build locally
-pnpm preview
-
-# Deploy to Cloudflare
-pnpm deploy
+# Start the production server
+pnpm start
 ```
 
 ## Usage
@@ -127,18 +131,19 @@ Use the filter inputs at the top to filter messages by:
 
 ## Database Schema
 
-The application uses Drizzle ORM with a single table `messages`. The schema is defined in `src/db/schema.ts`:
+The application uses Kysely with PostgreSQL. The schema includes:
 
-```typescript
-export const messages = sqliteTable("messages", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  key: text("key").notNull(),
-  locale: text("locale").notNull(),
-  message: text("message").notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" }).$default(() => new Date()),
-  updatedAt: integer("updated_at", { mode: "timestamp" }).$default(() => new Date()),
-});
-```
+### Tables
+
+- **languages** - Stores supported languages (code, name)
+- **translation_keys** - Hierarchical key structure with parent_id for nesting
+- **translations** - Stores the actual translation values
+
+### Views
+
+- **translation_key_paths** - Recursive CTE view that builds full key paths (e.g., `feature.section.label`)
+
+The schema is defined in `migrations/` and types are generated with `kysely-codegen`.
 
 ### Nested Key Support
 

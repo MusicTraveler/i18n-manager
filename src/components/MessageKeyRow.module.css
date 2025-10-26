@@ -1,0 +1,79 @@
+.tableRow {
+  border-bottom: 1px solid #405364;
+}
+
+.frozenKeyCell {
+  padding: 12px;
+  vertical-align: top;
+  position: sticky;
+  left: 0;
+  background: #2b3d52;
+  z-index: 5;
+  border-right: 2px solid #405364;
+}
+
+.keyCellContent {
+  position: relative;
+}
+
+.keyName {
+  color: white;
+  font-size: 13px;
+  font-family: monospace;
+}
+
+.missingBadge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #D9822B;
+  color: white;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 10px;
+}
+
+.localeCell {
+  padding: 12px;
+  vertical-align: top;
+  width: 250px;
+}
+
+.localeContent {
+  color: white;
+  word-break: break-word;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+  outline: none;
+}
+
+.localeContent:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.localeContentDisabled {
+  color: #D9822B;
+  word-break: break-word;
+  cursor: default;
+  padding: 0;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+  outline: none;
+}
+
+.frozenActionsCell {
+  padding: 12px;
+  vertical-align: top;
+  position: sticky;
+  right: 0;
+  background: #2b3d52;
+  z-index: 5;
+  border-left: 2px solid #405364;
+}
+
+.actionsContainer {
+  display: flex;
+  gap: 5px;
+}

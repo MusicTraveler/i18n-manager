@@ -1,0 +1,117 @@
+.container {
+  margin-bottom: 20px;
+}
+
+.categoryHeader {
+  padding: 12px;
+  background: #364552;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-radius: 4px;
+  user-select: none;
+  margin-bottom: 10px;
+}
+
+.categoryExpandIcon {
+  color: white;
+  font-weight: bold;
+  font-size: 18px;
+}
+
+.categoryTitle {
+  color: white;
+  font-weight: bold;
+  font-size: 16px;
+  text-transform: capitalize;
+}
+
+.categoryCount {
+  color: #A7B6C2;
+  font-size: 14px;
+}
+
+.tableWrapper {
+  position: relative;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #2b3d52;
+  border-radius: 4px;
+  min-width: 600px;
+}
+
+.tableHeaderRow {
+  border-bottom: 1px solid #8f99a3;
+}
+
+.tableHead {
+  padding: 12px;
+  text-align: left;
+  color: white;
+  font-weight: bold;
+  width: 250px;
+}
+
+.frozenKeyHeader {
+  padding: 12px;
+  text-align: left;
+  color: white;
+  font-weight: bold;
+  width: 250px;
+  position: sticky;
+  left: 0;
+  background: #2b3d52;
+  z-index: 10;
+  border-right: 2px solid #405364;
+}
+
+.frozenActionsHeader {
+  padding: 12px;
+  text-align: left;
+  color: white;
+  font-weight: bold;
+  width: 100px;
+  position: sticky;
+  right: 0;
+  background: #2b3d52;
+  z-index: 10;
+  border-left: 2px solid #405364;
+}
+
+.subcategoryRow {
+  border-bottom: 2px solid #405364;
+}
+
+.frozenLeftCell {
+  padding: 10px 15px;
+  background: #2b3d52;
+  position: sticky;
+  left: 0;
+  z-index: 5;
+  border-right: 2px solid #405364;
+}
+
+.subcategoryCell {
+  padding: 10px 15px;
+  background: #364552;
+  color: #A7B6C2;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 12px;
+}
+
+.frozenRightCell {
+  padding: 10px 15px;
+  background: #2b3d52;
+  position: sticky;
+  right: 0;
+  z-index: 5;
+  border-left: 2px solid #405364;
+}
