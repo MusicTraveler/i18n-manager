@@ -1,6 +1,6 @@
 {
   "name": "i18n-manager",
-  "description": "Build a full-stack web application with Next.js.",
+  "description": "A comprehensive i18n string and locale management tool built with Next.js, for editing and maintaining translation messages.",
   "private": true,
   "scripts": {
     "build": "next build",
