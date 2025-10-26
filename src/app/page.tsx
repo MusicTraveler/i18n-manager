@@ -88,7 +88,7 @@ export default function Home() {
       }
       return a.keyName.localeCompare(b.keyName);
     });
-  }, [messages, allLocales]);
+  }, [messages, displayedLocales]);
 
   // Filter rows based on filterKey and filterLocale
   const filteredRows = useMemo(() => {
@@ -131,8 +131,7 @@ export default function Home() {
     if (allLocales.length > 0 && selectedLanguages.length === 0) {
       setSelectedLanguages(allLocales);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allLocales]);
+  }, [allLocales, selectedLanguages]);
 
   // Calculate completeness stats
   const allKeysSet = useMemo(() => new Set(messages.map((m) => m.key)), [messages]);
@@ -188,7 +187,7 @@ export default function Home() {
           </div>
 
           {allLocales.length > 0 && (
-            <div style={{ marginBottom: "15px" }}>
+            <div style={{ marginBottom: "15px", display: "inline-block" }}>
               <LanguageSelector
                 languages={allLocales}
                 selectedLanguages={selectedLanguages}

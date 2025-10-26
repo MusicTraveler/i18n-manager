@@ -43,7 +43,11 @@ export function LanguageSelector({ languages, selectedLanguages, onLanguagesChan
       onItemSelect={handleLanguageSelect}
       resetOnSelect={false}
       placeholder="Select languages to display..."
-      popoverProps={{ matchTargetWidth: true }}
+      popoverProps={{ 
+        matchTargetWidth: true,
+        usePortal: false
+      }}
+      filterable={false}
     >
       <Button
         icon="globe-network"

@@ -2,7 +2,7 @@
  * For more details on how to configure Wrangler, refer to:
  * https://developers.cloudflare.com/workers/wrangler/configuration/
  */ {
-  "$schema": "node_modules/wrangler/config-schema.json",
+  "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "i18n-manager",
   "main": ".open-next/worker.js",
   "compatibility_date": "2025-10-08",
@@ -11,24 +11,20 @@
     "binding": "ASSETS",
     "directory": ".open-next/assets"
   },
-  "vars": {
-    "CLOUDFLARE_ACCOUNT_ID": "e7ba3c2cd137c9237471b91c7e61097e",
-    "CLOUDFLARE_DATABASE_ID": "e80839bd-c6e3-441d-914b-8e2db809a3d9"
-  },
   "observability": {
     "enabled": true
   },
-  "upload_source_maps": true,
+  "upload_source_maps": false,
   "ai": {
-    "experimental_remote": true,
-    "binding": "AI"
+    "binding": "AI",
+    "remote": true
   },
   "d1_databases": [
     {
       "migrations_dir": "drizzle",
-			"experimental_remote": true,
       "database_name": "i18n-messages",
       "binding": "DB",
+      // "remote": true,
       "database_id": "e80839bd-c6e3-441d-914b-8e2db809a3d9"
     }
   ]

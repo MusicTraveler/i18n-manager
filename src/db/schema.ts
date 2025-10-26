@@ -8,17 +8,11 @@ export const languages = sqliteTable("languages", {
   name: text("name").notNull(), // e.g., 'English', 'Spanish', 'French'
 });
 
-// Namespaces table - for grouping translation keys
-export const namespaces = sqliteTable("namespaces", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  name: text("name").notNull().unique(), // e.g., 'feature', 'settings'
-});
-
-// Keys table - stores translation keys
+// Keys table - self-referencing table for hierarchical translation keys
 export const translationKeys = sqliteTable("translation_keys", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  namespaceId: integer("namespace_id").references(() => namespaces.id), // Optional, references namespaces.id
-  keyPath: text("key_path").notNull().unique(), // e.g., 'feature.section.label'
+  parentId: integer("parent_id").references((): any => translationKeys.id), // Self-reference for hierarchy
+  key: text("key").notNull(), // e.g., 'feature', 'label', 'title'
   description: text("description"), // Optional, for context or notes
 });
 
@@ -28,24 +22,24 @@ export const translations = sqliteTable("translations", {
   keyId: integer("key_id").notNull().references(() => translationKeys.id),
   languageCode: text("language_code").notNull().references(() => languages.code),
   value: text("value").notNull(), // The translated text
-});
-
-// Unique index to ensure one translation per key-language pair
-export const uniqueKeyLanguageIndex = uniqueIndex("unique_key_language").on(translations.keyId, translations.languageCode);
+}, (table) => ({
+  // Unique index to ensure one translation per key-language pair
+  uniqueKeyLanguage: uniqueIndex("unique_key_language").on(table.keyId, table.languageCode),
+}));
 
 // Relations for easier querying
 export const languagesRelations = relations(languages, ({ many }) => ({
   translations: many(translations),
 }));
 
-export const namespacesRelations = relations(namespaces, ({ many }) => ({
-  translationKeys: many(translationKeys),
-}));
-
 export const translationKeysRelations = relations(translationKeys, ({ one, many }) => ({
-  namespace: one(namespaces, {
-    fields: [translationKeys.namespaceId],
-    references: [namespaces.id],
+  parent: one(translationKeys, {
+    fields: [translationKeys.parentId],
+    references: [translationKeys.id],
+    relationName: "keyHierarchy",
+  }),
+  children: many(translationKeys, {
+    relationName: "keyHierarchy",
   }),
   translations: many(translations),
 }));
@@ -64,8 +58,6 @@ export const translationsRelations = relations(translations, ({ one }) => ({
 // Type exports for convenience
 export type Language = typeof languages.$inferSelect;
 export type NewLanguage = typeof languages.$inferInsert;
-export type Namespace = typeof namespaces.$inferSelect;
-export type NewNamespace = typeof namespaces.$inferInsert;
 export type TranslationKey = typeof translationKeys.$inferSelect;
 export type NewTranslationKey = typeof translationKeys.$inferInsert;
 export type Translation = typeof translations.$inferSelect;

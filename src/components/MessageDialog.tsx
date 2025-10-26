@@ -1,4 +1,5 @@
-import { useState, ChangeEvent } from "react";
+import { useState } from "react";
+import type { ChangeEvent } from "react";
 import { Button, Intent, Dialog, FormGroup, InputGroup, TextArea } from "@blueprintjs/core";
 import type { Message } from "@/lib/client";
 import { trpc } from "@/lib/client";
@@ -28,6 +29,20 @@ export function MessageDialog({ isOpen, editingMessage, onClose, onSuccess }: Me
   }
 
   const handleSave = async () => {
+    // Validate required fields
+    if (!formData.key.trim()) {
+      alert("Key is required");
+      return;
+    }
+    if (!formData.locale.trim()) {
+      alert("Locale is required");
+      return;
+    }
+    if (!formData.message.trim()) {
+      alert("Message cannot be blank");
+      return;
+    }
+
     try {
       if (editingMessage) {
         await trpc.update.mutate({

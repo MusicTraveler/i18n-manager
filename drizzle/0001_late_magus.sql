@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `unique_key_language` ON `translations` (`key_id`,`language_code`);

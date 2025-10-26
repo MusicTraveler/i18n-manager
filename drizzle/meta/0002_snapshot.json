@@ -1,8 +1,8 @@
 {
+  "id": "1ae112bd-f7dc-4d83-90a1-400b84cf77d1",
+  "prevId": "463275fd-b016-4792-8f06-1ec833e201a7",
   "version": "6",
   "dialect": "sqlite",
-  "id": "96827baf-bf58-4b14-bb53-f527253bfb48",
-  "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "languages": {
       "name": "languages",
@@ -80,15 +80,15 @@
         "translation_keys_parent_id_translation_keys_id_fk": {
           "name": "translation_keys_parent_id_translation_keys_id_fk",
           "tableFrom": "translation_keys",
-          "tableTo": "translation_keys",
           "columnsFrom": [
             "parent_id"
           ],
+          "tableTo": "translation_keys",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -127,33 +127,42 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "unique_key_language": {
+          "name": "unique_key_language",
+          "columns": [
+            "key_id",
+            "language_code"
+          ],
+          "isUnique": true
+        }
+      },
       "foreignKeys": {
         "translations_key_id_translation_keys_id_fk": {
           "name": "translations_key_id_translation_keys_id_fk",
           "tableFrom": "translations",
-          "tableTo": "translation_keys",
           "columnsFrom": [
             "key_id"
           ],
+          "tableTo": "translation_keys",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "translations_language_code_languages_code_fk": {
           "name": "translations_language_code_languages_code_fk",
           "tableFrom": "translations",
-          "tableTo": "languages",
           "columnsFrom": [
             "language_code"
           ],
+          "tableTo": "languages",
           "columnsTo": [
             "code"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -164,9 +173,9 @@
   "views": {},
   "enums": {},
   "_meta": {
+    "columns": {},
     "schemas": {},
-    "tables": {},
-    "columns": {}
+    "tables": {}
   },
   "internal": {
     "indexes": {}

@@ -1,5 +1,6 @@
 import { Button } from "@blueprintjs/core";
 import type { Message } from "@/lib/client";
+import type { MouseEvent, KeyboardEvent } from "react";
 
 interface MessageKeyRowProps {
   fullKey: string;
@@ -66,7 +67,41 @@ export function MessageKeyRow({
               width: "250px",
             }}
           >
-            <div style={{ color: isMissing ? "#D9822B" : "white", wordBreak: "break-word" }}>
+            <div 
+              role={msg ? "button" : undefined}
+              tabIndex={msg ? 0 : undefined}
+              style={{ 
+                color: isMissing ? "#D9822B" : "white", 
+                wordBreak: "break-word",
+                cursor: msg ? "pointer" : "default",
+                padding: msg ? "4px" : "0",
+                borderRadius: "4px",
+                transition: "background-color 0.2s",
+                outline: "none",
+              }}
+              onDoubleClick={() => {
+                if (msg) {
+                  onEdit(msg);
+                }
+              }}
+              onKeyDown={(e: KeyboardEvent<HTMLDivElement>) => {
+                if (msg && (e.key === "Enter" || e.key === " ")) {
+                  e.preventDefault();
+                  onEdit(msg);
+                }
+              }}
+              onMouseEnter={(e: MouseEvent<HTMLDivElement>) => {
+                if (msg) {
+                  e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.1)";
+                }
+              }}
+              onMouseLeave={(e: MouseEvent<HTMLDivElement>) => {
+                if (msg) {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                }
+              }}
+              title={msg ? "Double-click to edit" : undefined}
+            >
               {isMissing ? "—" : msg.message}
             </div>
           </td>

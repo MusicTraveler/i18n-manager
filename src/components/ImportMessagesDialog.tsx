@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
-import { Dialog, Button, Intent, FileInput, Callout, MenuItem } from "@blueprintjs/core";
-import { Select, ItemRendererProps } from "@blueprintjs/select";
+import { Dialog, Button, Intent, FileInput, Callout, MenuItem, Switch } from "@blueprintjs/core";
+import { Select } from "@blueprintjs/select";
+import type { ItemRendererProps } from "@blueprintjs/select";
 import { trpc } from "@/lib/client";
 import { mutate } from "swr";
 
@@ -30,6 +31,7 @@ export function ImportMessagesDialog({ isOpen, onClose, onSuccess }: ImportMessa
   const [isImporting, setIsImporting] = useState(false);
   const [languages, setLanguages] = useState<Language[]>([]);
   const [isLoadingLanguages, setIsLoadingLanguages] = useState(false);
+  const [overwriteExisting, setOverwriteExisting] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch available languages from the database
@@ -62,7 +64,7 @@ export function ImportMessagesDialog({ isOpen, onClose, onSuccess }: ImportMessa
         const content = e.target?.result as string;
         setFileContent(content);
         setError("");
-      } catch (err) {
+      } catch {
         setError("Failed to read file");
       }
     };
@@ -91,7 +93,7 @@ export function ImportMessagesDialog({ isOpen, onClose, onSuccess }: ImportMessa
       }
 
       // Helper function to flatten nested objects
-      const flattenObject = (obj: any, prefix = ""): ImportedMessage[] => {
+      const flattenObject = (obj: Record<string, unknown>, prefix = ""): ImportedMessage[] => {
         const result: ImportedMessage[] = [];
         
         for (const [key, value] of Object.entries(obj)) {
@@ -99,7 +101,7 @@ export function ImportMessagesDialog({ isOpen, onClose, onSuccess }: ImportMessa
           
           if (typeof value === "object" && value !== null && !Array.isArray(value)) {
             // Nested object - recurse
-            result.push(...flattenObject(value, newKey));
+            result.push(...flattenObject(value as Record<string, unknown>, newKey));
           } else {
             // Leaf value
             result.push({ key: newKey, locale: selectedLocale, message: String(value) });
@@ -110,40 +112,37 @@ export function ImportMessagesDialog({ isOpen, onClose, onSuccess }: ImportMessa
       };
 
       // Flatten the nested structure
-      const messages = flattenObject(data);
+      const messages = flattenObject(data as Record<string, unknown>);
 
       if (messages.length === 0) {
         throw new Error("No valid messages found in the file");
       }
 
-      // Import each message
-      let successCount = 0;
-      let errorCount = 0;
-
-      for (const msg of messages) {
-        try {
-          await trpc.create.mutate({
-            key: msg.key,
-            locale: msg.locale,
-            message: msg.message,
-          });
-          successCount++;
-        } catch (err) {
-          console.error("Error importing message:", msg, err);
-          errorCount++;
-        }
-      }
+      // Bulk import all messages at once
+      const result = await trpc.bulkImport.mutate({
+        locale: selectedLocale,
+        messages: messages.map((msg) => ({
+          key: msg.key,
+          message: msg.message,
+        })),
+        overwriteExisting,
+      });
 
       // Refresh the data
       await mutate("messages");
 
       setIsImporting(false);
       
-      if (errorCount > 0) {
-        alert(`Imported ${successCount} messages successfully. ${errorCount} messages failed to import.`);
-      } else {
-        alert(`Successfully imported ${successCount} messages!`);
-      }
+      const updated = result.updated ?? 0;
+      const inserted = result.inserted ?? 0;
+      
+      const summary = updated > 0 && inserted > 0
+        ? `Updated ${updated} existing messages and imported ${inserted} new messages`
+        : updated > 0
+        ? `Updated ${updated} existing messages`
+        : `Imported ${inserted} new messages`;
+      
+      alert(`Successfully completed import! ${summary}`);
       
       onClose();
       onSuccess();
@@ -239,6 +238,20 @@ export function ImportMessagesDialog({ isOpen, onClose, onSuccess }: ImportMessa
           </LocaleSelect>
           <div style={{ fontSize: "12px", color: "#A7B6C2", marginTop: "8px" }}>
             This locale will be applied to all imported messages
+          </div>
+        </div>
+
+        <div style={{ marginBottom: "20px" }}>
+          <Switch
+            checked={overwriteExisting}
+            onChange={(e) => setOverwriteExisting(e.currentTarget.checked)}
+            label="Overwrite existing translations"
+            large
+          />
+          <div style={{ fontSize: "12px", color: "#A7B6C2", marginTop: "4px", marginLeft: "30px" }}>
+            {overwriteExisting 
+              ? "Existing translations will be updated with new values from the file" 
+              : "Existing translations will be kept, only new translations will be added"}
           </div>
         </div>
 

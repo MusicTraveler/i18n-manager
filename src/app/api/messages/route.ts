@@ -1,8 +1,29 @@
-import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { translations, translationKeys } from "@/db/schema";
 import { getDb } from "@/db";
+
+// Helper function to build full key path from a key ID by traversing parents
+async function getFullKeyPath(keyId: number): Promise<string> {
+  const drizzleDb = getDb();
+  const parts: string[] = [];
+  let currentId: number | null = keyId;
+
+  while (currentId !== null) {
+    const keyRecord = await drizzleDb
+      .select()
+      .from(translationKeys)
+      .where(eq(translationKeys.id, currentId))
+      .limit(1);
+
+    if (keyRecord.length === 0) break;
+
+    parts.unshift(keyRecord[0].key);
+    currentId = keyRecord[0].parentId;
+  }
+
+  return parts.join(".");
+}
 
 /**
  * Export i18n messages as JSON files
@@ -22,18 +43,17 @@ export async function GET(request: Request) {
     if (locale) {
       const result = await drizzleDb
         .select({
-          keyPath: translationKeys.keyPath,
+          keyId: translations.keyId,
           value: translations.value,
         })
         .from(translations)
-        .innerJoin(translationKeys, eq(translations.keyId, translationKeys.id))
-        .where(eq(translations.languageCode, locale))
-        .orderBy(translationKeys.keyPath);
+        .where(eq(translations.languageCode, locale));
 
-      // Transform flat keys to nested objects
+      // Build full key paths and transform to nested objects
       const jsonObject: any = {};
       for (const row of result) {
-        const keys = row.keyPath.split(".");
+        const keyPath = await getFullKeyPath(row.keyId);
+        const keys = keyPath.split(".");
         let current = jsonObject;
         
         // Navigate/create nested structure
@@ -60,13 +80,11 @@ export async function GET(request: Request) {
     // Export all messages grouped by locale
     const allMessages = await drizzleDb
       .select({
-        keyPath: translationKeys.keyPath,
+        keyId: translations.keyId,
         languageCode: translations.languageCode,
         value: translations.value,
       })
-      .from(translations)
-      .innerJoin(translationKeys, eq(translations.keyId, translationKeys.id))
-      .orderBy(translations.languageCode, translationKeys.keyPath);
+      .from(translations);
 
     const groupedByLocale: Record<string, any> = {};
     
@@ -75,8 +93,9 @@ export async function GET(request: Request) {
         groupedByLocale[row.languageCode] = {};
       }
       
-      // Transform flat keys to nested objects
-      const keys = row.keyPath.split(".");
+      // Build full key path and transform to nested objects
+      const keyPath = await getFullKeyPath(row.keyId);
+      const keys = keyPath.split(".");
       let current = groupedByLocale[row.languageCode];
       
       // Navigate/create nested structure
