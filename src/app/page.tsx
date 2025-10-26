@@ -18,8 +18,6 @@ import {
   InputGroup,
   Intent,
   NonIdealState,
-  Section,
-  SectionCard,
   TextArea,
 } from "@blueprintjs/core";
 import { trpc } from "@/lib/client";
@@ -334,7 +332,7 @@ export default function Home() {
 
   return (
     <div className="bp6-dark" style={{ minHeight: "100vh", padding: "20px" }}>
-      <Section id="i18n-manager-section">
+      <div id="i18n-manager-section">
         <div style={{ marginBottom: "20px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
             <h1 style={{ margin: 0, color: "white" }}>i18n Manager</h1>
@@ -375,7 +373,7 @@ export default function Home() {
           )}
         </div>
 
-        <SectionCard>
+        <div>
           <div style={{ marginBottom: "20px", display: "flex", gap: "10px" }}>
             <InputGroup
               placeholder="Filter by key..."
@@ -455,8 +453,8 @@ export default function Home() {
               </div>
             )}
           </Card>
-        </SectionCard>
-      </Section>
+        </div>
+      </div>
 
       <Dialog
         isOpen={isDialogOpen}
