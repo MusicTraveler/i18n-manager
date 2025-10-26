@@ -1,0 +1,9 @@
+{
+  "dialect": "postgres",
+  "url": "env(DATABASE_URL)",
+  "outFile": "./src/db/types.ts",
+  "camelCase": false,
+  "typeOnlyImports": true,
+  "envFile": ".env"
+}
+

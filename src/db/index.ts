@@ -1,17 +1,30 @@
-import { getCloudflareContext } from "@opennextjs/cloudflare";
-import { drizzle } from "drizzle-orm/d1";
-import { cache } from "react";
-import { sql } from "drizzle-orm";
-import * as schema from "./schema";
- 
+import { Pool } from 'pg';
+import { Kysely, PostgresDialect } from 'kysely';
+import type { DB } from './types';
+import { cache } from 'react';
+
+// Create a PostgreSQL connection pool
+const createConnection = () => {
+  const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    max: 10,
+  });
+
+  const dialect = new PostgresDialect({
+    pool,
+  });
+
+  return new Kysely<DB>({
+    dialect,
+  });
+};
+
+// Cache the database connection for React components
 export const getDb = cache(() => {
-  const { env } = getCloudflareContext();
-  const db = drizzle(env.DB, { schema });
-  return db;
+  return createConnection();
 });
- 
-// This is the one to use for static routes (i.e. ISR/SSG)
+
+// Async version for use in static routes
 export const getDbAsync = cache(async () => {
-  const { env } = await getCloudflareContext({ async: true });
-  return drizzle(env.DB, { schema });
+  return createConnection();
 });

@@ -2,34 +2,14 @@
   "name": "i18n-manager",
   "description": "Build a full-stack web application with Next.js.",
   "private": true,
-  "cloudflare": {
-    "label": "i18n Manager",
-    "products": [
-      "Workers"
-    ],
-    "categories": [],
-    "preview_icon_url": "https://imagedelivery.net/wSMYJvS3Xw-n339CbDyDIA/05eee9e0-2c04-48fd-11bf-84e65f839000/public",
-    "preview_image_url": "https://imagedelivery.net/wSMYJvS3Xw-n339CbDyDIA/4e913a56-fd99-4372-0586-9f1364173100/preview",
-    "publish": true
-  },
   "scripts": {
     "build": "next build",
-    "cf-typegen": "wrangler types --env-interface CloudflareEnv env.d.ts",
     "check": "npm run build && tsc",
-    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "db:generate-types": "kysely-codegen",
+    "db:migrate": "tsx scripts/migrate.ts",
     "dev": "next dev --turbopack --port 4077",
     "lint": "next lint",
-    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-    "start": "next start",
-    "db:generate": "drizzle-kit generate",
-    "db:push": "drizzle-kit push",
-    "studio": "drizzle-kit studio",
-    "list": "wrangler d1 migrations list DB --local",
-    "list:preview": "wrangler d1 migrations list DB --env preview",
-    "list:production": "wrangler d1 migrations list DB --env production",
-    "apply": "wrangler d1 migrations apply DB --local",
-    "apply:preview": "wrangler d1 migrations apply DB --env preview",
-    "apply:production": "wrangler d1 migrations apply DB --env production"
+    "start": "next start"
   },
   "dependencies": {
     "@blueprintjs/core": "^6.3.2",
@@ -42,10 +22,11 @@
     "@trpc/client": "^11.7.0",
     "@trpc/server": "^11.7.0",
     "date-fns": "^4.1.0",
-    "drizzle-kit": "^0.31.5",
-    "drizzle-orm": "^0.44.7",
+    "kysely": "^0.27.0",
+    "kysely-codegen": "^0.19.0",
     "next": "15.5.6",
     "normalize.css": "^8.0.1",
+    "pg": "^8.16.3",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "superjson": "^2.2.3",
@@ -55,11 +36,12 @@
   "devDependencies": {
     "@biomejs/biome": "2.3.0",
     "@types/node": "24.9.1",
+    "@types/pg": "^8.15.5",
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",
     "dotenv": "^17.2.3",
     "sass": "^1.93.2",
-    "typescript": "5.9.3",
-    "wrangler": "4.45.0"
+    "tsx": "^4.19.2",
+    "typescript": "5.9.3"
   }
 }

@@ -1,13 +1,11 @@
 import { initTRPC } from "@trpc/server";
 import superjson from "superjson";
 import { z } from "zod";
-import { eq, and, inArray, sql, isNull } from "drizzle-orm";
-import { translations, translationKeys, languages } from "@/db/schema";
-import type { DrizzleD1Database } from "drizzle-orm/d1";
-import type * as schema from "@/db/schema";
+import type { Kysely } from "kysely";
+import type { DB } from "@/db/types";
 
 type Context = {
-  db: DrizzleD1Database<typeof schema>;
+  db: Kysely<DB>;
 };
 
 const t = initTRPC.context<Context>().create({
@@ -18,7 +16,7 @@ export const router = t.router;
 export const publicProcedure = t.procedure;
 
 // Helper function to build full key path from a key ID by traversing parents
-async function getFullKeyPath(db: DrizzleD1Database<typeof schema>, keyId: number): Promise<string> {
+async function getFullKeyPath(db: Kysely<DB>, keyId: number): Promise<string> {
   try {
     const parts: string[] = [];
     let currentId: number | null = keyId;
@@ -28,15 +26,15 @@ async function getFullKeyPath(db: DrizzleD1Database<typeof schema>, keyId: numbe
       visited.add(currentId);
       
       const keyRecord = await db
-        .select()
-        .from(translationKeys)
-        .where(eq(translationKeys.id, currentId))
-        .limit(1);
+        .selectFrom("translation_keys")
+        .selectAll()
+        .where("id", "=", currentId)
+        .executeTakeFirst();
 
-      if (keyRecord.length === 0) break;
+      if (!keyRecord) break;
 
-      parts.unshift(keyRecord[0].key);
-      currentId = keyRecord[0].parentId;
+      parts.unshift(keyRecord.key);
+      currentId = keyRecord.parent_id;
     }
 
     const path = parts.join(".");
@@ -49,7 +47,7 @@ async function getFullKeyPath(db: DrizzleD1Database<typeof schema>, keyId: numbe
 
 // Helper function to find or create a key from a dot-separated path (e.g., "feature.section.label")
 async function findOrCreateKeyFromPath(
-  db: DrizzleD1Database<typeof schema>,
+  db: Kysely<DB>,
   keyPath: string
 ): Promise<number> {
   const parts = keyPath.split(".");
@@ -57,65 +55,65 @@ async function findOrCreateKeyFromPath(
 
   for (const part of parts) {
     // Try to find existing key with this name and parent
-    const existing = await db
-      .select()
-      .from(translationKeys)
-      .where(
-        parentId === null
-          ? and(eq(translationKeys.key, part), isNull(translationKeys.parentId))
-          : and(eq(translationKeys.key, part), eq(translationKeys.parentId, parentId))
-      )
-      .limit(1);
+    const existing = (parentId === null
+      ? await db
+          .selectFrom("translation_keys")
+          .selectAll()
+          .where("key", "=", part)
+          .where("parent_id", "is", null)
+          .executeTakeFirst()
+      : await db
+          .selectFrom("translation_keys")
+          .selectAll()
+          .where("key", "=", part)
+          .where("parent_id", "=", parentId)
+          .executeTakeFirst()) as { id: number; parent_id: number | null; key: string; description: string | null } | undefined;
 
-    if (existing.length > 0) {
-      parentId = existing[0].id;
+    if (existing) {
+      parentId = existing.id;
     } else {
       // Create new key
-      await db
-        .insert(translationKeys)
-        .values({ key: part, parentId });
+      const result = await db
+        .insertInto("translation_keys")
+        .values({ key: part, parent_id: parentId })
+        .returningAll()
+        .executeTakeFirst();
       
-      // Get the newly created key
-      const newKey = await db
-        .select()
-        .from(translationKeys)
-        .where(
-          parentId === null
-            ? and(eq(translationKeys.key, part), isNull(translationKeys.parentId))
-            : and(eq(translationKeys.key, part), eq(translationKeys.parentId, parentId))
-        )
-        .limit(1);
-      
-      if (newKey.length > 0) {
-        parentId = newKey[0].id;
+      if (result) {
+        parentId = result.id;
       }
     }
   }
 
-  return parentId!;
+  if (!parentId) throw new Error('Failed to create key');
+  return parentId;
 }
 
 // Helper function to find a key ID from a dot-separated path
 async function findKeyIdFromPath(
-  db: DrizzleD1Database<typeof schema>,
+  db: Kysely<DB>,
   keyPath: string
 ): Promise<number | null> {
   const parts = keyPath.split(".");
   let parentId: number | null = null;
 
   for (const part of parts) {
-    const existing = await db
-      .select()
-      .from(translationKeys)
-      .where(
-        parentId === null
-          ? and(eq(translationKeys.key, part), isNull(translationKeys.parentId))
-          : and(eq(translationKeys.key, part), eq(translationKeys.parentId, parentId))
-      )
-      .limit(1);
+    const existing = (parentId === null
+      ? await db
+          .selectFrom("translation_keys")
+          .selectAll()
+          .where("key", "=", part)
+          .where("parent_id", "is", null)
+          .executeTakeFirst()
+      : await db
+          .selectFrom("translation_keys")
+          .selectAll()
+          .where("key", "=", part)
+          .where("parent_id", "=", parentId)
+          .executeTakeFirst()) as { id: number; parent_id: number | null; key: string; description: string | null } | undefined;
 
-    if (existing.length === 0) return null;
-    parentId = existing[0].id;
+    if (!existing) return null;
+    parentId = existing.id;
   }
 
   return parentId;
@@ -125,12 +123,10 @@ export const appRouter = router({
   // Get all available languages
   getLanguages: publicProcedure.query(async ({ ctx }) => {
     const result = await ctx.db
-      .select({
-        code: languages.code,
-        name: languages.name,
-      })
-      .from(languages)
-      .orderBy(languages.code);
+      .selectFrom("languages")
+      .select(["code", "name"])
+      .orderBy("code")
+      .execute();
     
     return result;
   }),
@@ -144,23 +140,24 @@ export const appRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const drizzleDb = ctx.db;
+      const db = ctx.db;
       const { code, name } = input;
 
       // Check if language already exists
-      const existing = await drizzleDb
-        .select()
-        .from(languages)
-        .where(eq(languages.code, code))
-        .limit(1);
+      const existing = await db
+        .selectFrom("languages")
+        .selectAll()
+        .where("code", "=", code)
+        .executeTakeFirst();
 
-      if (existing.length > 0) {
+      if (existing) {
         throw new Error("Language with this code already exists");
       }
 
-      await drizzleDb
-        .insert(languages)
-        .values({ code, name });
+      await db
+        .insertInto("languages")
+        .values({ code, name })
+        .execute();
 
       return { success: true };
     }),
@@ -174,46 +171,26 @@ export const appRouter = router({
       })
     )
     .query(async ({ input, ctx }) => {
-      const drizzleDb = ctx.db;
+      const db = ctx.db;
       const { key, locale } = input;
 
-      // Get translations with optional locale filter
-      const translationsQuery = drizzleDb
-        .select({
-          id: translations.id,
-          keyId: translations.keyId,
-          locale: translations.languageCode,
-          message: translations.value,
-        })
-        .from(translations);
+      // Build query using the translation_key_paths view
+      let query = db
+        .selectFrom("translations as t")
+        .innerJoin("translation_key_paths as kp", "t.key_id", "kp.id")
+        .select([
+          "t.id",
+          "t.key_id as keyId",
+          "t.language_code as locale",
+          "t.value as message",
+          "kp.full_path as key"
+        ]);
 
-      const allTranslations = locale
-        ? await translationsQuery.where(eq(translations.languageCode, locale))
-        : await translationsQuery;
-
-      // Get unique key IDs
-      const uniqueKeyIds = new Set(allTranslations.map((t) => t.keyId));
-      
-      if (uniqueKeyIds.size === 0) {
-        return [];
+      if (locale) {
+        query = query.where("t.language_code", "=", locale);
       }
-      
-      // Use raw SQL to get all key paths efficiently
-      // This bypasses the parameter limit by using a subquery
-      const keyPaths: Array<{ id: number; full_path: string }> = await drizzleDb.all(
-        sql`SELECT id, full_path FROM translation_key_paths WHERE id IN (SELECT DISTINCT key_id FROM translations)`
-      );
-      
-      // Create a map of keyId -> full path
-      const keysMap = new Map(keyPaths.map(k => [k.id, k.full_path]));
 
-      // Build full key paths for each translation
-      const result = allTranslations.map((t) => ({
-        id: t.id,
-        key: keysMap.get(t.keyId) || `unknown.${t.keyId}`,
-        locale: t.locale,
-        message: t.message,
-      }));
+      const result = await query.execute();
 
       // Filter by key if specified
       const filteredResult = key
@@ -222,12 +199,17 @@ export const appRouter = router({
 
       // Sort by key then locale
       filteredResult.sort((a, b) => {
-        const keyCompare = a.key.localeCompare(b.key);
+        const keyCompare = (a.key || '').localeCompare(b.key || '');
         if (keyCompare !== 0) return keyCompare;
         return a.locale.localeCompare(b.locale);
       });
 
-      return filteredResult;
+      return filteredResult.map((t) => ({
+        id: t.id,
+        key: t.key || `unknown.${t.keyId}`,
+        locale: t.locale,
+        message: t.message,
+      }));
     }),
 
   // Create a new message
@@ -240,34 +222,40 @@ export const appRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const drizzleDb = ctx.db;
+      const db = ctx.db;
       const { key, locale, message } = input;
 
       // Find or create the translation key hierarchy
-      const keyId = await findOrCreateKeyFromPath(drizzleDb, key);
+      const keyId = await findOrCreateKeyFromPath(db, key);
 
       // Find or create the language
-      const languageRecord = await drizzleDb
-        .select()
-        .from(languages)
-        .where(eq(languages.code, locale))
-        .limit(1);
+      const languageRecord = await db
+        .selectFrom("languages")
+        .selectAll()
+        .where("code", "=", locale)
+        .executeTakeFirst();
 
-      if (languageRecord.length === 0) {
-        await drizzleDb
-          .insert(languages)
-          .values({ code: locale, name: locale });
+      if (!languageRecord) {
+        await db
+          .insertInto("languages")
+          .values({ code: locale, name: locale })
+          .execute();
       }
 
       // Create the translation
-      const result = await drizzleDb
-        .insert(translations)
-        .values({ keyId, languageCode: locale, value: message })
-        .returning();
+      const result = await db
+        .insertInto("translations")
+        .values({ 
+          key_id: keyId, 
+          language_code: locale, 
+          value: message 
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
 
       return {
-        id: result[0].id,
-        key: await getFullKeyPath(drizzleDb, keyId),
+        id: result.id,
+        key: await getFullKeyPath(db, keyId),
         locale,
         message,
       };
@@ -288,7 +276,7 @@ export const appRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const drizzleDb = ctx.db;
+      const db = ctx.db;
       const { locale, messages, overwriteExisting } = input;
 
       if (messages.length === 0) {
@@ -296,17 +284,21 @@ export const appRouter = router({
       }
 
       // Ensure language exists
-      const languageRecord = await drizzleDb
-        .select()
-        .from(languages)
-        .where(eq(languages.code, locale))
-        .limit(1);
+      const languageRecord = await db
+        .selectFrom("languages")
+        .selectAll()
+        .where("code", "=", locale)
+        .executeTakeFirst();
 
-      if (languageRecord.length === 0) {
-        await drizzleDb
-          .insert(languages)
+      if (!languageRecord) {
+        await db
+          .insertInto("languages")
           .values({ code: locale, name: locale })
-          .onConflictDoUpdate({ target: languages.code, set: { name: locale } });
+          .onConflict((oc) => oc
+            .column("code")
+            .doUpdateSet({ name: locale })
+          )
+          .execute();
       }
 
       // Step 1: Find or create all translation key hierarchies
@@ -314,7 +306,7 @@ export const appRouter = router({
       const keyMap = new Map<string, number>();
       
       for (const keyPath of uniqueKeys) {
-        const keyId = await findOrCreateKeyFromPath(drizzleDb, keyPath);
+        const keyId = await findOrCreateKeyFromPath(db, keyPath);
         keyMap.set(keyPath, keyId);
       }
 
@@ -324,28 +316,30 @@ export const appRouter = router({
         if (!keyId) throw new Error(`Key ${msg.key} not found`);
         
         if (overwriteExisting) {
-          // Update existing translations
-          await drizzleDb
-            .insert(translations)
+          // Upsert translations
+          await db
+            .insertInto("translations")
             .values({
-              keyId,
-              languageCode: locale,
+              key_id: keyId,
+              language_code: locale,
               value: msg.message,
             })
-            .onConflictDoUpdate({
-              target: [translations.keyId, translations.languageCode],
-              set: { value: sql`excluded.value` }
-            });
+            .onConflict((oc) => oc
+              .columns(["key_id", "language_code"])
+              .doUpdateSet({ value: msg.message })
+            )
+            .execute();
         } else {
           // Skip existing translations, only insert new ones
           try {
-            await drizzleDb
-              .insert(translations)
+            await db
+              .insertInto("translations")
               .values({
-                keyId,
-                languageCode: locale,
+                key_id: keyId,
+                language_code: locale,
                 value: msg.message,
-              });
+              })
+              .execute();
           } catch {
             // Ignore conflict errors - translation already exists
           }
@@ -371,31 +365,31 @@ export const appRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const drizzleDb = ctx.db;
+      const db = ctx.db;
       const { id, message } = input;
 
       // Update the translation value
-      await drizzleDb
-        .update(translations)
+      await db
+        .updateTable("translations")
         .set({ value: message })
-        .where(eq(translations.id, id));
+        .where("id", "=", id)
+        .execute();
 
       // Return the updated translation with joined data
-      const result = await drizzleDb
-        .select({
-          id: translations.id,
-          keyId: translations.keyId,
-          locale: translations.languageCode,
-          message: translations.value,
-        })
-        .from(translations)
-        .where(eq(translations.id, id))
-        .limit(1);
+      const translation = await db
+        .selectFrom("translations")
+        .select([
+          "translations.id",
+          "translations.key_id as keyId",
+          "translations.language_code as locale",
+          "translations.value as message",
+        ])
+        .where("id", "=", id)
+        .executeTakeFirstOrThrow();
 
-      const translation = result[0];
       return {
         id: translation.id,
-        key: await getFullKeyPath(drizzleDb, translation.keyId),
+        key: await getFullKeyPath(db, translation.keyId),
         locale: translation.locale,
         message: translation.message,
       };
@@ -405,12 +399,13 @@ export const appRouter = router({
   delete: publicProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      const drizzleDb = ctx.db;
+      const db = ctx.db;
       const { id } = input;
 
-      await drizzleDb
-        .delete(translations)
-        .where(eq(translations.id, id));
+      await db
+        .deleteFrom("translations")
+        .where("id", "=", id)
+        .execute();
 
       return { success: true };
     }),
@@ -419,25 +414,27 @@ export const appRouter = router({
   deleteByKey: publicProcedure
     .input(z.object({ key: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      const drizzleDb = ctx.db;
+      const db = ctx.db;
       const { key } = input;
 
       // Find the translation key by path
-      const keyId = await findKeyIdFromPath(drizzleDb, key);
+      const keyId = await findKeyIdFromPath(db, key);
 
       if (!keyId) {
         return { success: false, message: "Key not found" };
       }
 
       // Delete all translations for this key
-      await drizzleDb
-        .delete(translations)
-        .where(eq(translations.keyId, keyId));
+      await db
+        .deleteFrom("translations")
+        .where("key_id", "=", keyId)
+        .execute();
 
       // Delete the translation key itself (and any orphaned parent keys)
-      await drizzleDb
-        .delete(translationKeys)
-        .where(eq(translationKeys.id, keyId));
+      await db
+        .deleteFrom("translation_keys")
+        .where("id", "=", keyId)
+        .execute();
 
       return { success: true };
     }),
@@ -446,16 +443,17 @@ export const appRouter = router({
   getMissingKeys: publicProcedure
     .input(z.object({ locale: z.string() }))
     .query(async ({ input, ctx }) => {
-      const drizzleDb = ctx.db;
+      const db = ctx.db;
       const { locale } = input;
 
       // Get all leaf translation keys (keys that have translations, not just parent nodes)
-      const allTranslationsRaw = await drizzleDb
-        .select({
-          keyId: translations.keyId,
-          languageCode: translations.languageCode,
-        })
-        .from(translations);
+      const allTranslationsRaw = await db
+        .selectFrom("translations")
+        .select([
+          "translations.key_id as keyId",
+          "translations.language_code as languageCode",
+        ])
+        .execute();
 
       // Get unique key IDs
       const uniqueKeyIds = Array.from(new Set(allTranslationsRaw.map((t) => t.keyId)));
@@ -463,7 +461,7 @@ export const appRouter = router({
       // Build full paths for all unique keys
       const allKeyPathsMap = new Map<number, string>();
       for (const keyId of uniqueKeyIds) {
-        const fullPath = await getFullKeyPath(drizzleDb, keyId);
+        const fullPath = await getFullKeyPath(db, keyId);
         allKeyPathsMap.set(keyId, fullPath);
       }
 
@@ -512,4 +510,3 @@ export const appRouter = router({
 });
 
 export type AppRouter = typeof appRouter;
-
