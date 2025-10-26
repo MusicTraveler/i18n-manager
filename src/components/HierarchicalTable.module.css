@@ -46,7 +46,7 @@
   text-align: left;
   color: white;
   font-weight: bold;
-  width: 250px;
+  width: 180px;
   position: sticky;
   left: 50px;
   background: #2b3d52;
@@ -83,6 +83,8 @@
   background: #2b3d52;
   z-index: 5;
   border-right: 2px solid #405364;
+  width: 180px;
+  max-width: 180px;
 }
 
 .keyCell {
