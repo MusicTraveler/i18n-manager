@@ -14,6 +14,12 @@
   margin-bottom: 10px;
 }
 
+.categoryHeaderActions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+}
+
 .categoryExpandIcon {
   color: white;
   font-weight: bold;
@@ -58,6 +64,23 @@
   width: 250px;
 }
 
+.checkboxHeader {
+  padding: 12px;
+  text-align: center;
+  color: white;
+  font-weight: bold;
+  width: 50px;
+  position: sticky;
+  left: 0;
+  background: #2b3d52;
+  z-index: 11;
+}
+
+.checkboxHeaderInput {
+  cursor: pointer;
+  accent-color: #5c7080;
+}
+
 .frozenKeyHeader {
   padding: 12px;
   text-align: left;
@@ -65,34 +88,31 @@
   font-weight: bold;
   width: 250px;
   position: sticky;
-  left: 0;
+  left: 50px;
   background: #2b3d52;
   z-index: 10;
   border-right: 2px solid #405364;
-}
-
-.frozenActionsHeader {
-  padding: 12px;
-  text-align: left;
-  color: white;
-  font-weight: bold;
-  width: 100px;
-  position: sticky;
-  right: 0;
-  background: #2b3d52;
-  z-index: 10;
-  border-left: 2px solid #405364;
 }
 
 .subcategoryRow {
   border-bottom: 2px solid #405364;
 }
 
-.frozenLeftCell {
+.checkboxCell {
   padding: 10px 15px;
   background: #2b3d52;
   position: sticky;
   left: 0;
+  z-index: 11;
+  text-align: center;
+  width: 50px;
+}
+
+.frozenLeftCell {
+  padding: 10px 15px;
+  background: #2b3d52;
+  position: sticky;
+  left: 50px;
   z-index: 5;
   border-right: 2px solid #405364;
 }
@@ -105,13 +125,20 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
   font-size: 12px;
+  display: flex;
+  align-items: center;
 }
 
-.frozenRightCell {
+.subcategoryActions {
+  margin-left: 10px;
+}
+
+.addRowRow {
+  border-bottom: 2px solid #405364;
+}
+
+.addRowCell {
   padding: 10px 15px;
   background: #2b3d52;
-  position: sticky;
-  right: 0;
-  z-index: 5;
-  border-left: 2px solid #405364;
+  text-align: center;
 }

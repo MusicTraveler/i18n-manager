@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import 'normalize.css';
 import "@/styles/globals.scss";
+import { FocusStyleManager } from "@blueprintjs/core";
+
+FocusStyleManager.onlyShowFocusOnTabs();
 
 
 export const metadata: Metadata = {

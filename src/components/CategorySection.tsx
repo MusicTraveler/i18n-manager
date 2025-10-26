@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Collapse } from "@blueprintjs/core";
+import { Collapse, Button } from "@blueprintjs/core";
 import { MessageKeyRow } from "./MessageKeyRow";
 import type { Message } from "@/lib/client";
 import styles from "./CategorySection.module.css";
@@ -17,14 +17,45 @@ interface CategorySectionProps {
   category: string;
   subcategories: Map<string, KeyRow[]>;
   allLocales: string[];
+  selectedKeys: Set<string>;
+  selectAllChecked: boolean;
+  selectAllIndeterminate: boolean;
   onEdit: (message: Message) => void;
-  onDelete: (fullKey: string) => void;
+  onAddRow?: (parentKey: string) => void;
+  onRowSelect: (fullKey: string, isSelected: boolean) => void;
+  onSelectAll: () => void;
 }
 
-export function CategorySection({ category, subcategories, allLocales, onEdit, onDelete }: CategorySectionProps) {
+export function CategorySection({ 
+  category, 
+  subcategories, 
+  allLocales, 
+  selectedKeys,
+  selectAllChecked,
+  selectAllIndeterminate,
+  onEdit, 
+  onAddRow,
+  onRowSelect,
+  onSelectAll
+}: CategorySectionProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   
   const totalKeys = Array.from(subcategories.values()).flat().length;
+
+  const handleAddCategoryRow = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onAddRow) {
+      onAddRow(category);
+    }
+  };
+
+  const handleAddSubcategoryRow = (subcategory: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onAddRow) {
+      const parentKey = subcategory === "_root" ? category : `${category}.${subcategory}`;
+      onAddRow(parentKey);
+    }
+  };
 
   return (
     <div className={styles.container}>
@@ -50,6 +81,16 @@ export function CategorySection({ category, subcategories, allLocales, onEdit, o
         <span className={styles.categoryCount}>
           ({totalKeys} key{totalKeys !== 1 ? 's' : ''})
         </span>
+        <div className={styles.categoryHeaderActions}>
+          <Button
+            small
+            icon="add"
+            intent="none"
+            minimal
+            onClick={handleAddCategoryRow}
+            title="Add key to this category"
+          />
+        </div>
       </div>
 
       <Collapse isOpen={isExpanded}>
@@ -57,6 +98,18 @@ export function CategorySection({ category, subcategories, allLocales, onEdit, o
           <table className={styles.table}>
             <thead>
               <tr className={styles.tableHeaderRow}>
+                {/* Checkbox Column */}
+                <th className={styles.checkboxHeader}>
+                  <input
+                    type="checkbox"
+                    className={styles.checkboxHeaderInput}
+                    checked={selectAllChecked}
+                    ref={(input) => {
+                      if (input) input.indeterminate = selectAllIndeterminate;
+                    }}
+                    onChange={onSelectAll}
+                  />
+                </th>
                 {/* Frozen Key Column */}
                 <th className={styles.frozenKeyHeader}>
                   Key
@@ -70,10 +123,6 @@ export function CategorySection({ category, subcategories, allLocales, onEdit, o
                     {locale.toUpperCase()}
                   </th>
                 ))}
-                {/* Frozen Actions Column */}
-                <th className={styles.frozenActionsHeader}>
-                  Actions
-                </th>
               </tr>
             </thead>
             <tbody>
@@ -84,14 +133,23 @@ export function CategorySection({ category, subcategories, allLocales, onEdit, o
                   <React.Fragment key={`category-${category}-subcategory-${subcategory}`}>
                     {subcategory !== "_root" && (
                       <tr className={styles.subcategoryRow}>
+                        <td className={styles.checkboxCell} />
                         <td className={styles.frozenLeftCell} />
                         <td
                           colSpan={allLocales.length}
                           className={styles.subcategoryCell}
                         >
-                          {subcategory}
+                          <span>{subcategory}</span>
+                          <div className={styles.subcategoryActions}>
+                            <Button
+                              small
+                              icon="add"
+                              minimal
+                              onClick={(e: React.MouseEvent) => handleAddSubcategoryRow(subcategory, e)}
+                              title="Add key to this subsection"
+                            />
+                          </div>
                         </td>
-                        <td className={styles.frozenRightCell} />
                       </tr>
                     )}
                     {rows.map((row) => (
@@ -105,9 +163,27 @@ export function CategorySection({ category, subcategories, allLocales, onEdit, o
                         missingLocales={row.missingLocales}
                         allLocales={allLocales}
                         onEdit={onEdit}
-                        onDelete={onDelete}
+                        isSelected={selectedKeys.has(row.fullKey)}
+                        onSelect={onRowSelect}
                       />
                     ))}
+                    <tr className={styles.addRowRow}>
+                      <td className={styles.checkboxCell} />
+                      <td className={styles.frozenLeftCell} />
+                      <td
+                        colSpan={allLocales.length}
+                        className={styles.addRowCell}
+                      >
+                        <Button
+                          small
+                          icon="add"
+                          intent="primary"
+                          minimal
+                          onClick={(e: React.MouseEvent) => handleAddSubcategoryRow(subcategory, e)}
+                          text="Add new translation"
+                        />
+                      </td>
+                    </tr>
                   </React.Fragment>
                 );
               })}

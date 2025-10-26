@@ -1,0 +1,172 @@
+.tableWrapper {
+  position: relative;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #2b3d52;
+  border-radius: 4px;
+  min-width: 600px;
+}
+
+.tableHeaderRow {
+  border-bottom: 1px solid #8f99a3;
+}
+
+.tableHead {
+  padding: 12px;
+  text-align: left;
+  color: white;
+  font-weight: bold;
+  width: 250px;
+}
+
+.checkboxHeader {
+  padding: 12px;
+  text-align: center;
+  color: white;
+  font-weight: bold;
+  width: 50px;
+  position: sticky;
+  left: 0;
+  background: #2b3d52;
+  z-index: 11;
+}
+
+.checkboxHeaderInput {
+  cursor: pointer;
+  accent-color: #5c7080;
+}
+
+.frozenKeyHeader {
+  padding: 12px;
+  text-align: left;
+  color: white;
+  font-weight: bold;
+  width: 250px;
+  position: sticky;
+  left: 50px;
+  background: #2b3d52;
+  z-index: 10;
+  border-right: 2px solid #405364;
+}
+
+.tableRow {
+  border-bottom: 1px solid #405364;
+}
+
+.checkboxCell {
+  padding: 12px;
+  vertical-align: top;
+  position: sticky;
+  left: 0;
+  background: #2b3d52;
+  z-index: 11;
+  text-align: center;
+  width: 50px;
+}
+
+.checkbox {
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+}
+
+.frozenKeyCell {
+  padding: 12px;
+  vertical-align: top;
+  position: sticky;
+  left: 50px;
+  background: #2b3d52;
+  z-index: 5;
+  border-right: 2px solid #405364;
+}
+
+.keyCell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.expandButton {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
+  outline: none;
+}
+
+.expandButton:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+.categoryLabel {
+  color: white;
+  font-weight: bold;
+  font-size: 16px;
+  text-transform: capitalize;
+}
+
+.subcategoryLabel {
+  color: #A7B6C2;
+  font-weight: bold;
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+}
+
+.keyLabel {
+  color: white;
+  font-size: 13px;
+  font-family: monospace;
+}
+
+.localeCell {
+  padding: 12px;
+  vertical-align: top;
+  width: 250px;
+  max-width: 250px;
+  overflow: hidden;
+}
+
+.localeContent {
+  color: white;
+  word-break: break-word;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+  outline: none;
+}
+
+.localeContent:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.localeContentDisabled {
+  color: #D9822B;
+  word-break: break-word;
+  cursor: default;
+  padding: 0;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+  outline: none;
+}
+
+.missingBadge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #D9822B;
+  color: white;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 10px;
+}
+

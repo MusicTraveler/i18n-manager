@@ -1,4 +1,5 @@
 import { useState } from "react";
+import * as React from "react";
 import type { ChangeEvent } from "react";
 import { Button, Intent, Dialog, FormGroup, InputGroup, TextArea } from "@blueprintjs/core";
 import type { Message } from "@/lib/client";
@@ -8,11 +9,12 @@ import { mutate } from "swr";
 interface MessageDialogProps {
   isOpen: boolean;
   editingMessage: Message | null;
+  parentKey?: string;
   onClose: () => void;
   onSuccess: () => void;
 }
 
-export function MessageDialog({ isOpen, editingMessage, onClose, onSuccess }: MessageDialogProps) {
+export function MessageDialog({ isOpen, editingMessage, parentKey, onClose, onSuccess }: MessageDialogProps) {
   const [formData, setFormData] = useState({ 
     key: "", 
     locale: "", 
@@ -20,13 +22,29 @@ export function MessageDialog({ isOpen, editingMessage, onClose, onSuccess }: Me
   });
 
   // Reset form when dialog opens/closes or editingMessage changes
-  if (editingMessage && isOpen && formData.key !== editingMessage.key) {
-    setFormData({ 
-      key: editingMessage.key, 
-      locale: editingMessage.locale, 
-      message: editingMessage.message 
-    });
-  }
+  React.useEffect(() => {
+    if (isOpen) {
+      if (editingMessage) {
+        setFormData({ 
+          key: editingMessage.key, 
+          locale: editingMessage.locale, 
+          message: editingMessage.message 
+        });
+      } else if (parentKey) {
+        setFormData({ 
+          key: parentKey, 
+          locale: "", 
+          message: "" 
+        });
+      } else {
+        setFormData({ 
+          key: "", 
+          locale: "", 
+          message: "" 
+        });
+      }
+    }
+  }, [isOpen, editingMessage, parentKey]);
 
   const handleSave = async () => {
     // Validate required fields

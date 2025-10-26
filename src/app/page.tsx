@@ -1,15 +1,14 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback } from "react";
 import useSWR, { mutate } from "swr";
-import { NonIdealState, Section, SectionCard, Button, Intent } from "@blueprintjs/core";
+import { NonIdealState, Section, SectionCard, Button, Intent, Navbar, Alignment } from "@blueprintjs/core";
 import { trpc } from "@/lib/client";
 import type { Message } from "@/lib/client";
 import { MessageCompletenessStats } from "@/components/MessageCompletenessStats";
 import { FiltersSection } from "@/components/FiltersSection";
-import { CategorySection } from "@/components/CategorySection";
+import { HierarchicalTable } from "@/components/HierarchicalTable";
 import { MessageDialog } from "@/components/MessageDialog";
-import { LanguageSelector } from "@/components/LanguageSelector";
 import { ImportMessagesDialog } from "@/components/ImportMessagesDialog";
 import { AddLanguageDialog } from "@/components/AddLanguageDialog";
 
@@ -27,14 +26,25 @@ type KeyRow = {
   missingLocales: string[];
 };
 
+type TableRow = {
+  id: string;
+  type: 'category' | 'subcategory' | 'key';
+  label: string;
+  fullKey?: string;
+  messagesByLocale?: Map<string, Message>;
+  missingLocales?: string[];
+  children?: TableRow[];
+};
+
 export default function Home() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isAddLanguageDialogOpen, setIsAddLanguageDialogOpen] = useState(false);
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+  const [parentKey, setParentKey] = useState<string>("");
   const [filterKey, setFilterKey] = useState("");
   const [filterLocale, setFilterLocale] = useState("");
-  const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
 
   const { data: messages = [], error, isLoading } = useSWR<Message[], Error>("messages", fetcher);
 
@@ -44,16 +54,14 @@ export default function Home() {
     return Array.from(locales).sort();
   }, [messages]);
 
-  // Filter locales based on selected languages
-  const displayedLocales = useMemo(() => {
-    if (selectedLanguages.length === 0) return allLocales;
-    return allLocales.filter(locale => selectedLanguages.includes(locale));
-  }, [allLocales, selectedLanguages]);
+  // Transform messages into hierarchical structure for TanStack Table
+  const tableData = useMemo(() => {
+    if (!messages.length) return [];
 
-  // Transform messages into table rows with locales as columns
-  const tableRows = useMemo(() => {
+    // Step 1: Build key map and prefix tree
     const keyMap = new Map<string, KeyRow>();
-
+    const prefixTree = new Map<string, Set<string>>(); // prefix -> set of full keys
+    
     for (const msg of messages) {
       if (!keyMap.has(msg.key)) {
         const parts = msg.key.split(".");
@@ -69,69 +77,141 @@ export default function Home() {
           messagesByLocale: new Map(),
           missingLocales: [],
         });
-      }
 
+        // Build prefix tree for efficient lookups
+        // Add root prefix
+        if (!prefixTree.has('')) {
+          prefixTree.set('', new Set());
+        }
+        prefixTree.get('')!.add(msg.key);
+        
+        // Add all parent prefixes
+        const pathParts = msg.key.split('.');
+        for (let i = 1; i < pathParts.length; i++) {
+          const prefix = pathParts.slice(0, i).join('.');
+          if (!prefixTree.has(prefix)) {
+            prefixTree.set(prefix, new Set());
+          }
+          prefixTree.get(prefix)!.add(msg.key);
+        }
+      }
       keyMap.get(msg.key)!.messagesByLocale.set(msg.locale, msg);
     }
 
-    // Calculate missing locales for each key (based on displayed locales)
+    // Calculate missing locales for each key
     for (const row of keyMap.values()) {
-      row.missingLocales = displayedLocales.filter((l) => !row.messagesByLocale.has(l));
+      row.missingLocales = allLocales.filter((l) => !row.messagesByLocale.has(l));
     }
 
-    return Array.from(keyMap.values()).sort((a, b) => {
-      if (a.category !== b.category) return a.category.localeCompare(b.category);
-      if (a.subcategory !== b.subcategory) {
-        if (!a.subcategory) return -1;
-        if (!b.subcategory) return 1;
-        return a.subcategory.localeCompare(b.subcategory);
-      }
-      return a.keyName.localeCompare(b.keyName);
-    });
-  }, [messages, displayedLocales]);
+    // Step 2: Build hierarchical structure efficiently
+    const buildHierarchy = (prefix: string): TableRow[] => {
+      const keysWithPrefix = prefixTree.get(prefix);
+      if (!keysWithPrefix) return [];
 
-  // Filter rows based on filterKey and filterLocale
-  const filteredRows = useMemo(() => {
-    return tableRows.filter((row) => {
-      if (filterKey && !row.fullKey.toLowerCase().includes(filterKey.toLowerCase())) return false;
-      if (filterLocale) {
-        const hasMatchingLocale = Array.from(row.messagesByLocale.values()).some(
+      // Get direct children (next segment only)
+      const directChildren = new Map<string, { keys: string[], hasChildren: boolean }>();
+      
+      for (const fullKey of keysWithPrefix) {
+        const suffix = prefix ? fullKey.substring(prefix.length + 1) : fullKey;
+        if (!suffix) continue;
+        
+        const parts = suffix.split('.');
+        const nextSegment = parts[0];
+        const isLeaf = parts.length === 1;
+        
+        if (!directChildren.has(nextSegment)) {
+          directChildren.set(nextSegment, { keys: [], hasChildren: false });
+        }
+        
+        if (isLeaf) {
+          directChildren.get(nextSegment)!.keys.push(fullKey);
+        } else {
+          directChildren.get(nextSegment)!.hasChildren = true;
+        }
+      }
+
+      const result: TableRow[] = [];
+      
+      for (const [segment, { keys, hasChildren }] of Array.from(directChildren.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
+        const fullPath = prefix ? `${prefix}.${segment}` : segment;
+        
+        if (hasChildren) {
+          // Has nested children
+          const children = buildHierarchy(fullPath);
+          result.push({
+            id: fullPath,
+            type: prefix ? 'subcategory' : 'category',
+            label: segment,
+            children,
+          });
+        } else {
+          // Only leaf keys
+          for (const key of keys) {
+            const row = keyMap.get(key);
+            if (row) {
+              result.push({
+                id: key,
+                type: 'key',
+                label: row.keyName,
+                fullKey: key,
+                messagesByLocale: row.messagesByLocale,
+                missingLocales: row.missingLocales,
+              });
+            }
+          }
+        }
+      }
+      
+      return result;
+    };
+
+    const result = buildHierarchy('');
+    
+    console.log('Table data:', result);
+    console.log('Messages count:', messages.length);
+    
+    return result;
+  }, [messages, allLocales]);
+
+  // Filter table data based on filterKey and filterLocale
+  const filteredTableData = useMemo(() => {
+    const filterNode = (node: TableRow): TableRow | null => {
+      let shouldInclude = true;
+      
+      // Check filterKey
+      if (filterKey && node.fullKey && !node.fullKey.toLowerCase().includes(filterKey.toLowerCase())) {
+        shouldInclude = false;
+      }
+      
+      // Check filterLocale
+      if (filterLocale && node.messagesByLocale) {
+        const hasMatchingLocale = Array.from(node.messagesByLocale.values()).some(
           (m) => m.locale.toLowerCase().includes(filterLocale.toLowerCase())
         );
-        if (!hasMatchingLocale) return false;
-      }
-      return true;
-    });
-  }, [tableRows, filterKey, filterLocale]);
-
-  // Group filtered rows by category
-  const filteredGroupedRows = useMemo(() => {
-    const categories = new Map<string, Map<string, KeyRow[]>>();
-
-    for (const row of filteredRows) {
-      if (!categories.has(row.category)) {
-        categories.set(row.category, new Map());
-      }
-
-      const categoryMap = categories.get(row.category)!;
-      
-      const subcat = row.subcategory || "_root";
-      if (!categoryMap.has(subcat)) {
-        categoryMap.set(subcat, []);
+        if (!hasMatchingLocale) {
+          shouldInclude = false;
+        }
       }
       
-      categoryMap.get(subcat)!.push(row);
-    }
+      // Recursively filter children
+      const filteredChildren = node.children 
+        ? node.children.map(child => filterNode(child)).filter((child): child is TableRow => child !== null)
+        : undefined;
+      
+      // Include node if it matches filters or has matching children
+      if (shouldInclude || (filteredChildren && filteredChildren.length > 0)) {
+        return {
+          ...node,
+          children: filteredChildren,
+        };
+      }
+      
+      return null;
+    };
+    
+    return tableData.map(node => filterNode(node)).filter((node): node is TableRow => node !== null);
+  }, [tableData, filterKey, filterLocale]);
 
-    return categories;
-  }, [filteredRows]);
-
-  // Update selected languages when allLocales changes (on initial load)
-  useEffect(() => {
-    if (allLocales.length > 0 && selectedLanguages.length === 0) {
-      setSelectedLanguages(allLocales);
-    }
-  }, [allLocales, selectedLanguages]);
 
   // Calculate completeness stats
   const allKeysSet = useMemo(() => new Set(messages.map((m) => m.key)), [messages]);
@@ -154,48 +234,92 @@ export default function Home() {
 
   const handleEdit = useCallback((message: Message) => {
     setEditingMessage(message);
+    setParentKey("");
     setIsDialogOpen(true);
   }, []);
 
-  const handleDelete = useCallback(async (fullKey: string) => {
-    try {
-      await trpc.deleteByKey.mutate({ key: fullKey });
-      await mutate("messages");
-    } catch (error) {
-      console.error("Error deleting messages:", error);
-      alert("Failed to delete message key");
-    }
+  const handleAddRow = useCallback((parentKey: string) => {
+    setEditingMessage(null);
+    setParentKey(parentKey);
+    setIsDialogOpen(true);
   }, []);
 
-  return (
-    <div className="bp6-dark" style={{ minHeight: "100vh", padding: "20px" }}>
-      <Section id="i18n-manager-section" suppressHydrationWarning>
-        <div style={{ marginBottom: "20px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-            <h1 style={{ margin: 0, color: "white" }}>i18n Manager</h1>
-            <div style={{ display: "flex", gap: "10px" }}>
-              <Button intent="none" icon="globe-network" onClick={() => setIsAddLanguageDialogOpen(true)}>
-                Add Language
-              </Button>
-              <Button intent="none" icon="import" onClick={() => setIsImportDialogOpen(true)}>
-                Import
-              </Button>
-              <Button intent={Intent.PRIMARY} icon="add" onClick={() => setIsDialogOpen(true)}>
-                Add Message
-              </Button>
-            </div>
-          </div>
+  const handleRowSelect = useCallback((fullKey: string, isSelected: boolean) => {
+    setSelectedKeys((prev) => {
+      const newSet = new Set(prev);
+      if (isSelected) {
+        newSet.add(fullKey);
+      } else {
+        newSet.delete(fullKey);
+      }
+      return newSet;
+    });
+  }, []);
 
-          {allLocales.length > 0 && (
-            <div style={{ marginBottom: "15px", display: "inline-block" }}>
-              <LanguageSelector
-                languages={allLocales}
-                selectedLanguages={selectedLanguages}
-                onLanguagesChange={setSelectedLanguages}
-              />
-            </div>
-          )}
-          
+  // Get all leaf keys (actual message keys) from filtered table data
+  const getAllLeafKeys = useCallback((nodes: TableRow[]): string[] => {
+    const keys: string[] = [];
+    for (const node of nodes) {
+      if (node.type === 'key' && node.fullKey) {
+        keys.push(node.fullKey);
+      }
+      if (node.children) {
+        keys.push(...getAllLeafKeys(node.children));
+      }
+    }
+    return keys;
+  }, []);
+
+  const handleSelectAll = useCallback(() => {
+    const allLeafKeys = getAllLeafKeys(filteredTableData);
+    if (selectedKeys.size === allLeafKeys.length) {
+      setSelectedKeys(new Set());
+    } else {
+      setSelectedKeys(new Set(allLeafKeys));
+    }
+  }, [selectedKeys, filteredTableData, getAllLeafKeys]);
+
+  const handleDeleteSelected = useCallback(async () => {
+    if (selectedKeys.size === 0) return;
+    
+    if (confirm(`Are you sure you want to delete ${selectedKeys.size} key(s)?`)) {
+      try {
+        const deletePromises = Array.from(selectedKeys).map((key) => 
+          trpc.deleteByKey.mutate({ key })
+        );
+        await Promise.all(deletePromises);
+        setSelectedKeys(new Set());
+        await mutate("messages");
+      } catch (error) {
+        console.error("Error deleting messages:", error);
+        alert("Failed to delete selected messages");
+      }
+    }
+  }, [selectedKeys]);
+
+
+  return (
+    <div className="bp6-dark" style={{ minHeight: "100vh" }}>
+      <Navbar fixedToTop>
+        <Navbar.Group align={Alignment.LEFT}>
+          <Navbar.Heading>i18n Manager</Navbar.Heading>
+          <Navbar.Divider />
+        </Navbar.Group>
+        <Navbar.Group align={Alignment.RIGHT}>
+          <Button intent="none" icon="globe-network" onClick={() => setIsAddLanguageDialogOpen(true)}>
+            Add Language
+          </Button>
+          <Button intent="none" icon="import" onClick={() => setIsImportDialogOpen(true)}>
+            Import
+          </Button>
+          <Button intent={Intent.PRIMARY} icon="add" onClick={() => setIsDialogOpen(true)}>
+            Add Message
+          </Button>
+        </Navbar.Group>
+      </Navbar>
+
+      <Section id="i18n-manager-section" suppressHydrationWarning style={{ paddingTop: "70px", padding: "70px 20px 20px 20px" }}>
+        <div style={{ marginBottom: "20px" }}>
           <MessageCompletenessStats messages={messages} stats={completenessStats} />
         </div>
 
@@ -205,6 +329,8 @@ export default function Home() {
             filterLocale={filterLocale}
             onFilterKeyChange={setFilterKey}
             onFilterLocaleChange={setFilterLocale}
+            selectedKeysCount={selectedKeys.size}
+            onDeleteSelected={handleDeleteSelected}
           />
 
           <div style={{ background: "#2b3d52", padding: "20px", borderRadius: "4px" }}>
@@ -212,7 +338,7 @@ export default function Home() {
               <div style={{ padding: "20px", textAlign: "center", color: "white" }}>Loading...</div>
             ) : error ? (
               <div style={{ padding: "20px", textAlign: "center", color: "red" }}>Error loading messages</div>
-            ) : filteredRows.length === 0 ? (
+            ) : filteredTableData.length === 0 ? (
               <NonIdealState
                 icon="translate"
                 title="No messages found"
@@ -220,16 +346,17 @@ export default function Home() {
               />
             ) : (
               <div>
-                {Array.from(filteredGroupedRows.entries()).map(([category, subcategories]) => (
-                  <CategorySection
-                    key={category}
-                    category={category}
-                    subcategories={subcategories}
-                    allLocales={displayedLocales}
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                  />
-                ))}
+                <HierarchicalTable
+                  data={filteredTableData}
+                  allLocales={allLocales}
+                  selectedKeys={selectedKeys}
+                  selectAllChecked={selectedKeys.size === getAllLeafKeys(filteredTableData).length && getAllLeafKeys(filteredTableData).length > 0}
+                  selectAllIndeterminate={selectedKeys.size > 0 && selectedKeys.size < getAllLeafKeys(filteredTableData).length}
+                  onEdit={handleEdit}
+                  onAddRow={handleAddRow}
+                  onRowSelect={handleRowSelect}
+                  onSelectAll={handleSelectAll}
+                />
               </div>
             )}
           </div>
@@ -239,9 +366,11 @@ export default function Home() {
       <MessageDialog
         isOpen={isDialogOpen}
         editingMessage={editingMessage}
+        parentKey={parentKey}
         onClose={() => {
           setIsDialogOpen(false);
           setEditingMessage(null);
+          setParentKey("");
         }}
         onSuccess={() => {}}
       />

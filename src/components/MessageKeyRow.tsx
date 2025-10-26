@@ -1,4 +1,3 @@
-import { Button } from "@blueprintjs/core";
 import type { Message } from "@/lib/client";
 import type { KeyboardEvent } from "react";
 import styles from "./MessageKeyRow.module.css";
@@ -12,7 +11,8 @@ interface MessageKeyRowProps {
   missingLocales: string[];
   allLocales: string[];
   onEdit: (message: Message) => void;
-  onDelete: (fullKey: string) => void;
+  isSelected: boolean;
+  onSelect: (fullKey: string, selected: boolean) => void;
 }
 
 export function MessageKeyRow({ 
@@ -22,14 +22,21 @@ export function MessageKeyRow({
   missingLocales, 
   allLocales, 
   onEdit,
-  onDelete
+  isSelected,
+  onSelect
 }: MessageKeyRowProps) {
-  const firstMessage = messagesByLocale.size > 0 
-    ? Array.from(messagesByLocale.values())[0] 
-    : null;
 
   return (
     <tr className={styles.tableRow}>
+      {/* Checkbox Column */}
+      <td className={styles.checkboxCell}>
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={(e) => onSelect(fullKey, e.target.checked)}
+          className={styles.checkbox}
+        />
+      </td>
       {/* Frozen Key Column */}
       <td className={styles.frozenKeyCell}>
         <div className={styles.keyCellContent}>
@@ -78,33 +85,6 @@ export function MessageKeyRow({
           </td>
         );
       })}
-
-      {/* Frozen Actions Column */}
-      <td className={styles.frozenActionsCell}>
-        <div className={styles.actionsContainer}>
-          {firstMessage && (
-            <>
-              <Button
-                small
-                icon="edit"
-                onClick={() => onEdit(firstMessage)}
-                minimal
-              />
-              <Button
-                small
-                icon="trash"
-                onClick={() => {
-                  if (confirm(`Are you sure you want to delete all translations for "${fullKey}"?`)) {
-                    onDelete(fullKey);
-                  }
-                }}
-                minimal
-                intent="danger"
-              />
-            </>
-          )}
-        </div>
-      </td>
     </tr>
   );
 }
