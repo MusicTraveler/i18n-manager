@@ -1,7 +1,7 @@
 import { sql } from 'kysely';
 import type { Kysely } from 'kysely';
 
-export async function up(db: Kysely<any>): Promise<void> {
+export async function up(db: Kysely<null>): Promise<void> {
   // Update the view to build paths correctly (parent + child)
   await sql`
     CREATE OR REPLACE VIEW translation_key_paths AS
@@ -24,7 +24,7 @@ export async function up(db: Kysely<any>): Promise<void> {
   `.execute(db);
 }
 
-export async function down(db: Kysely<any>): Promise<void> {
+export async function down(db: Kysely<null>): Promise<void> {
   // Revert to old version
   await sql`
     CREATE OR REPLACE VIEW translation_key_paths AS

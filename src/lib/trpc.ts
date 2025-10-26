@@ -310,40 +310,38 @@ export const appRouter = router({
         keyMap.set(keyPath, keyId);
       }
 
-      // Step 2: Upsert or insert translations one by one
-      for (const msg of messages) {
+      // Step 2: Batch insert/upsert translations
+      const translationValues = messages.map((msg) => {
         const keyId = keyMap.get(msg.key);
         if (!keyId) throw new Error(`Key ${msg.key} not found`);
-        
-        if (overwriteExisting) {
-          // Upsert translations
-          await db
-            .insertInto("translations")
-            .values({
-              key_id: keyId,
-              language_code: locale,
-              value: msg.message,
-            })
-            .onConflict((oc) => oc
-              .columns(["key_id", "language_code"])
-              .doUpdateSet({ value: msg.message })
-            )
-            .execute();
-        } else {
-          // Skip existing translations, only insert new ones
-          try {
-            await db
-              .insertInto("translations")
-              .values({
-                key_id: keyId,
-                language_code: locale,
-                value: msg.message,
-              })
-              .execute();
-          } catch {
-            // Ignore conflict errors - translation already exists
-          }
-        }
+        return {
+          key_id: keyId,
+          language_code: locale,
+          value: msg.message,
+        };
+      });
+
+      // Batch insert all translations
+      if (overwriteExisting && translationValues.length > 0) {
+        // Use ON CONFLICT to upsert
+        await db
+          .insertInto("translations")
+          .values(translationValues)
+          .onConflict((oc) => oc
+            .columns(["key_id", "language_code"])
+            .doUpdateSet((eb) => ({ value: eb.ref("excluded.value") }))
+          )
+          .execute();
+      } else if (translationValues.length > 0) {
+        // Try to insert, but skip conflicts
+        await db
+          .insertInto("translations")
+          .values(translationValues)
+          .onConflict((oc) => oc
+            .columns(["key_id", "language_code"])
+            .doNothing()
+          )
+          .execute();
       }
 
       return {
