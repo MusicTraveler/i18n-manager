@@ -1,7 +1,7 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
-import { messages } from "@/db/schema";
+import { translations, translationKeys, languages } from "@/db/schema";
 import { getDb } from "@/lib/db";
 
 export interface Message {
@@ -22,33 +22,57 @@ export async function GET(request: Request) {
 
     const drizzleDb = getDb(db);
     const url = new URL(request.url);
-    const key = url.searchParams.get("key");
+    const keyPath = url.searchParams.get("key");
     const locale = url.searchParams.get("locale");
 
     let result;
-    if (key && locale) {
+    if (keyPath && locale) {
       result = await drizzleDb
-        .select()
-        .from(messages)
-        .where(and(eq(messages.key, key), eq(messages.locale, locale)))
-        .orderBy(messages.key, messages.locale);
-    } else if (key) {
+        .select({
+          id: translations.id,
+          key: translationKeys.keyPath,
+          locale: translations.languageCode,
+          message: translations.value,
+        })
+        .from(translations)
+        .innerJoin(translationKeys, eq(translations.keyId, translationKeys.id))
+        .where(and(eq(translationKeys.keyPath, keyPath), eq(translations.languageCode, locale)))
+        .orderBy(translationKeys.keyPath, translations.languageCode);
+    } else if (keyPath) {
       result = await drizzleDb
-        .select()
-        .from(messages)
-        .where(eq(messages.key, key))
-        .orderBy(messages.locale);
+        .select({
+          id: translations.id,
+          key: translationKeys.keyPath,
+          locale: translations.languageCode,
+          message: translations.value,
+        })
+        .from(translations)
+        .innerJoin(translationKeys, eq(translations.keyId, translationKeys.id))
+        .where(eq(translationKeys.keyPath, keyPath))
+        .orderBy(translations.languageCode);
     } else if (locale) {
       result = await drizzleDb
-        .select()
-        .from(messages)
-        .where(eq(messages.locale, locale))
-        .orderBy(messages.key);
+        .select({
+          id: translations.id,
+          key: translationKeys.keyPath,
+          locale: translations.languageCode,
+          message: translations.value,
+        })
+        .from(translations)
+        .innerJoin(translationKeys, eq(translations.keyId, translationKeys.id))
+        .where(eq(translations.languageCode, locale))
+        .orderBy(translationKeys.keyPath);
     } else {
       result = await drizzleDb
-        .select()
-        .from(messages)
-        .orderBy(messages.key, messages.locale);
+        .select({
+          id: translations.id,
+          key: translationKeys.keyPath,
+          locale: translations.languageCode,
+          message: translations.value,
+        })
+        .from(translations)
+        .innerJoin(translationKeys, eq(translations.keyId, translationKeys.id))
+        .orderBy(translationKeys.keyPath, translations.languageCode);
     }
 
     return NextResponse.json(result);
@@ -81,12 +105,56 @@ export async function POST(request: Request) {
       );
     }
 
+    // Find or create the translation key
+    let keyRecord = await drizzleDb
+      .select()
+      .from(translationKeys)
+      .where(eq(translationKeys.keyPath, key))
+      .limit(1);
+
+    let keyId;
+    if (keyRecord.length > 0) {
+      keyId = keyRecord[0].id;
+    } else {
+      const newKey = await drizzleDb
+        .insert(translationKeys)
+        .values({ keyPath: key })
+        .returning();
+      keyId = newKey[0].id;
+    }
+
+    // Find or create the language
+    let languageRecord = await drizzleDb
+      .select()
+      .from(languages)
+      .where(eq(languages.code, locale))
+      .limit(1);
+
+    if (languageRecord.length === 0) {
+      await drizzleDb
+        .insert(languages)
+        .values({ code: locale, name: locale });
+    }
+
+    // Create the translation
     const result = await drizzleDb
-      .insert(messages)
-      .values({ key, locale, message })
+      .insert(translations)
+      .values({ keyId, languageCode: locale, value: message })
       .returning();
 
-    return NextResponse.json(result[0]);
+    const translationWithKey = await drizzleDb
+      .select({
+        id: translations.id,
+        key: translationKeys.keyPath,
+        locale: translations.languageCode,
+        message: translations.value,
+      })
+      .from(translations)
+      .innerJoin(translationKeys, eq(translations.keyId, translationKeys.id))
+      .where(eq(translations.id, result[0].id))
+      .limit(1);
+
+    return NextResponse.json(translationWithKey[0]);
   } catch (error: any) {
     console.error("Error creating message:", error);
     if (error.message?.includes("UNIQUE constraint")) {
@@ -122,11 +190,24 @@ export async function PUT(request: Request) {
       );
     }
 
+    // Update the translation value
+    await drizzleDb
+      .update(translations)
+      .set({ value: message })
+      .where(eq(translations.id, id));
+
+    // Return the updated translation with joined data
     const result = await drizzleDb
-      .update(messages)
-      .set({ key, locale, message, updatedAt: new Date() })
-      .where(eq(messages.id, id))
-      .returning();
+      .select({
+        id: translations.id,
+        key: translationKeys.keyPath,
+        locale: translations.languageCode,
+        message: translations.value,
+      })
+      .from(translations)
+      .innerJoin(translationKeys, eq(translations.keyId, translationKeys.id))
+      .where(eq(translations.id, id))
+      .limit(1);
 
     return NextResponse.json(result[0]);
   } catch (error) {
@@ -156,8 +237,8 @@ export async function DELETE(request: Request) {
     }
 
     await drizzleDb
-      .delete(messages)
-      .where(eq(messages.id, parseInt(id)));
+      .delete(translations)
+      .where(eq(translations.id, parseInt(id)));
 
     return NextResponse.json({ success: true });
   } catch (error) {

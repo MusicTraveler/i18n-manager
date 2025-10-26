@@ -1,7 +1,8 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { messages } from "@/db/schema";
+import { translationKeys, translations, languages } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 /**
  * Check for missing keys in a specific locale compared to all keys
@@ -23,39 +24,52 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "locale parameter is required" }, { status: 400 });
     }
 
-    // Get all unique keys across all locales
-    const allMessages = await drizzleDb.select().from(messages).all();
-    const allKeys = new Set(allMessages.map((m: any) => m.key));
+    // Get all translation keys
+    const allKeys = await drizzleDb.select().from(translationKeys).all();
+    const allKeysMap = new Map(allKeys.map((k) => [k.id, k.keyPath]));
+    const allKeyPaths = new Set(allKeys.map((k) => k.keyPath));
 
-    // Get keys for the specified locale
-    const localeMessages = allMessages.filter((m: any) => m.locale === locale);
-    const localeKeys = new Set(localeMessages.map((m: any) => m.key));
+    // Get all translations with their keys and languages
+    const allTranslations = await drizzleDb
+      .select({
+        keyId: translations.keyId,
+        languageCode: translations.languageCode,
+        keyPath: translationKeys.keyPath,
+      })
+      .from(translations)
+      .innerJoin(translationKeys, eq(translations.keyId, translationKeys.id));
 
-    // Find missing keys
-    const missingKeys = Array.from(allKeys).filter((key) => !localeKeys.has(key));
+    // Get all unique locales (language codes)
+    const allLocales = new Set(allTranslations.map((t) => t.languageCode));
 
-    // Count translations per key
-    const keyCounts: Record<string, number> = {};
-    allMessages.forEach((m: any) => {
-      keyCounts[m.key] = (keyCounts[m.key] || 0) + 1;
+    // Get translations for the specified locale
+    const localeTranslations = allTranslations.filter((t) => t.languageCode === locale);
+    const localeKeys = new Set(localeTranslations.map((t) => t.keyPath));
+
+    // Find missing keys for the specified locale
+    const missingKeys = Array.from(allKeyPaths).filter((keyPath) => !localeKeys.has(keyPath));
+
+    // Build key completeness data
+    const keyCompletenessData = Array.from(allKeyPaths).map((keyPath) => {
+      const translationsForKey = allTranslations.filter((t) => t.keyPath === keyPath);
+      return {
+        key: keyPath,
+        locales: Array.from(new Set(translationsForKey.map((t) => t.languageCode))),
+        localeCount: translationsForKey.length,
+      };
     });
-
-    // Find all locales
-    const allLocales = new Set(allMessages.map((m: any) => m.locale));
 
     return NextResponse.json({
       locale,
       missingKeys,
       missingCount: missingKeys.length,
-      totalKeys: allKeys.size,
+      totalKeys: allKeyPaths.size,
       completeKeys: localeKeys.size,
-      completeness: allKeys.size > 0 ? ((localeKeys.size / allKeys.size) * 100).toFixed(2) + "%" : "0%",
+      completeness: allKeyPaths.size > 0 
+        ? ((localeKeys.size / allKeyPaths.size) * 100).toFixed(2) + "%" 
+        : "0%",
       allLocales: Array.from(allLocales),
-      keyCompleteness: Array.from(allKeys).map((key) => ({
-        key,
-        locales: allMessages.filter((m: any) => m.key === key).map((m: any) => m.locale),
-        localeCount: (allMessages.filter((m: any) => m.key === key).length || 0),
-      })),
+      keyCompleteness: keyCompletenessData,
     });
   } catch (error) {
     console.error("Error checking missing keys:", error);

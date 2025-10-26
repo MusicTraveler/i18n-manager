@@ -1,7 +1,7 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
-import { messages } from "@/db/schema";
+import { translations, translationKeys } from "@/db/schema";
 import { getDb } from "@/lib/db";
 
 /**
@@ -27,15 +27,19 @@ export async function GET(request: Request) {
     // Export as JSON for a specific locale
     if (locale) {
       const result = await drizzleDb
-        .select()
-        .from(messages)
-        .where(eq(messages.locale, locale))
-        .orderBy(messages.key);
+        .select({
+          keyPath: translationKeys.keyPath,
+          value: translations.value,
+        })
+        .from(translations)
+        .innerJoin(translationKeys, eq(translations.keyId, translationKeys.id))
+        .where(eq(translations.languageCode, locale))
+        .orderBy(translationKeys.keyPath);
 
       // Transform flat keys to nested objects
       const jsonObject: any = {};
       for (const row of result) {
-        const keys = row.key.split(".");
+        const keys = row.keyPath.split(".");
         let current = jsonObject;
         
         // Navigate/create nested structure
@@ -48,7 +52,7 @@ export async function GET(request: Request) {
         }
         
         // Set the final value
-        current[keys[keys.length - 1]] = row.message;
+        current[keys[keys.length - 1]] = row.value;
       }
 
       return NextResponse.json(jsonObject, {
@@ -61,20 +65,25 @@ export async function GET(request: Request) {
 
     // Export all messages grouped by locale
     const allMessages = await drizzleDb
-      .select()
-      .from(messages)
-      .orderBy(messages.locale, messages.key);
+      .select({
+        keyPath: translationKeys.keyPath,
+        languageCode: translations.languageCode,
+        value: translations.value,
+      })
+      .from(translations)
+      .innerJoin(translationKeys, eq(translations.keyId, translationKeys.id))
+      .orderBy(translations.languageCode, translationKeys.keyPath);
 
     const groupedByLocale: Record<string, any> = {};
     
     for (const row of allMessages) {
-      if (!groupedByLocale[row.locale]) {
-        groupedByLocale[row.locale] = {};
+      if (!groupedByLocale[row.languageCode]) {
+        groupedByLocale[row.languageCode] = {};
       }
       
       // Transform flat keys to nested objects
-      const keys = row.key.split(".");
-      let current = groupedByLocale[row.locale];
+      const keys = row.keyPath.split(".");
+      let current = groupedByLocale[row.languageCode];
       
       // Navigate/create nested structure
       for (let i = 0; i < keys.length - 1; i++) {
@@ -86,7 +95,7 @@ export async function GET(request: Request) {
       }
       
       // Set the final value
-      current[keys[keys.length - 1]] = row.message;
+      current[keys[keys.length - 1]] = row.value;
     }
 
     return NextResponse.json(groupedByLocale, {
