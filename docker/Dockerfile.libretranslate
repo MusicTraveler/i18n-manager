@@ -1,12 +1,40 @@
-FROM libretranslate/libretranslate:latest
+FROM python:3.11-slim
 
-# The official image already has everything configured
-# Models will be stored in /home/libretranslate/.local/share/argos-translate
-# Mount a volume to this path on Railway for persistence
+# Set working directory
+WORKDIR /app
 
-# Environment variables (can be overridden in Railway)
+# Install system dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    libicu-dev \
+    pkg-config \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Upgrade pip
+RUN pip install --no-cache-dir --upgrade pip
+
+# Install LibreTranslate and all its dependencies
+RUN pip install --no-cache-dir \
+    libretranslate==1.6.1 \
+    argostranslate \
+    argostranslatefiles
+
+# Create directory for models
+# Mount Railway volume to: /home/libretranslate/.local/share/argos-translate
+RUN mkdir -p /home/libretranslate/.local/share/argos-translate
+
+# Set environment variables
+ENV HOME=/home/libretranslate
 ENV LT_HOST=0.0.0.0
 ENV LT_PORT=5000
+ENV LT_DISABLE_WEB_UI=false
+ENV LT_API_KEYS=false
 
 # Expose port
 EXPOSE 5000
+
+# Start LibreTranslate (pip creates a console script entry point)
+CMD ["libretranslate", "--host", "0.0.0.0", "--port", "5000"]
