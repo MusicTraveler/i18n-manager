@@ -27,6 +27,6 @@ ENV LT_API_KEYS=false
 # Expose port
 EXPOSE 5000
 
-# Run LibreTranslate
-CMD ["libretranslate", "--host", "0.0.0.0", "--port", "5000"]
+# Run LibreTranslate using Python module syntax
+CMD ["python", "-m", "libretranslate.main", "--host", "0.0.0.0", "--port", "5000"]
 
