@@ -16,11 +16,8 @@ RUN apt-get update && \
 # Upgrade pip
 RUN pip install --no-cache-dir --upgrade pip
 
-# Install LibreTranslate and all its dependencies
-RUN pip install --no-cache-dir \
-    libretranslate==1.6.1 \
-    argostranslate \
-    argostranslatefiles
+# Install LibreTranslate (argostranslate is included as a dependency)
+RUN pip install --no-cache-dir libretranslate==1.6.1
 
 # Create directory for models
 # Mount Railway volume to: /home/libretranslate/.local/share/argos-translate
