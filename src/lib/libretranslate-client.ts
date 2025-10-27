@@ -1,26 +1,30 @@
 /**
  * LibreTranslate API Client
- * 
+ *
  * Automatically configured client for the LibreTranslate API.
  * The base URL is set from environment variables.
- * 
+ *
  * Usage:
  * ```ts
  * import { libreTranslate } from '@/lib/libretranslate-client';
- * 
+ *
  * // Translate text
  * const result = await libreTranslate.translate.translate({
  *   q: 'Hello world',
  *   source: 'en',
  *   target: 'es'
  * });
- * 
+ *
  * // Get languages
  * const languages = await libreTranslate.frontend.languages();
  * ```
  */
 
-import { LibreTranslateClient, OpenAPI } from "./libretranslate";
+import {
+  LibreTranslateClient,
+  OpenAPI,
+  type OpenAPIConfig,
+} from "./libretranslate";
 
 // Get base URL from environment
 const getBaseUrl = () => {
@@ -46,11 +50,16 @@ OpenAPI.BASE = getBaseUrl();
 const apiKey = getApiKey();
 export const libreTranslate = new LibreTranslateClient({
   BASE: getBaseUrl(),
-  HEADERS: apiKey ? { "api_key": apiKey } : undefined,
+  HEADERS: apiKey ? { api_key: apiKey } : undefined,
 });
 
 // Re-export types and services for convenience
-export type { languages, translate, detections, frontend_settings } from "./libretranslate";
+export type {
+  detections,
+  frontend_settings,
+  languages,
+  translate,
+} from "./libretranslate";
 
 // Export the client class for custom instances
 export { LibreTranslateClient } from "./libretranslate";
@@ -58,7 +67,6 @@ export { LibreTranslateClient } from "./libretranslate";
 /**
  * Create a custom LibreTranslate client with custom configuration
  */
-export function createLibreTranslateClient(config?: Parameters<typeof LibreTranslateClient.prototype.constructor>[0]) {
+export function createLibreTranslateClient(config?: Partial<OpenAPIConfig>) {
   return new LibreTranslateClient(config);
 }
-

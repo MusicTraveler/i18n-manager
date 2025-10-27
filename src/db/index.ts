@@ -1,10 +1,10 @@
-import { Pool } from 'pg';
-import { Kysely, PostgresDialect } from 'kysely';
-import type { DB } from './types';
-import { cache } from 'react';
+import { Kysely, PostgresDialect } from "kysely";
+import { Pool } from "pg";
+import { cache } from "react";
+import type { DB } from "./types";
 
 // Create a PostgreSQL connection pool
-const createConnection = () => {
+export const createConnection = () => {
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     max: 10,
