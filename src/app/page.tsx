@@ -131,7 +131,7 @@ export default function Home() {
       if (!keysWithPrefix) return [];
 
       // Get direct children (next segment only)
-      const directChildren = new Map<string, { keys: string[], hasChildren: boolean }>();
+      const directChildren = new Map<string, { keys: string[], hasChildren: boolean, isPrefixKey: boolean }>();
       
       for (const fullKey of keysWithPrefix) {
         const suffix = prefix ? fullKey.substring(prefix.length + 1) : fullKey;
@@ -142,7 +142,7 @@ export default function Home() {
         const isLeaf = parts.length === 1;
         
         if (!directChildren.has(nextSegment)) {
-          directChildren.set(nextSegment, { keys: [], hasChildren: false });
+          directChildren.set(nextSegment, { keys: [], hasChildren: false, isPrefixKey: false });
         }
         
         if (isLeaf) {
@@ -151,10 +151,18 @@ export default function Home() {
           directChildren.get(nextSegment)!.hasChildren = true;
         }
       }
+      
+      // Check if any segment is a prefix key (exists as a key in translation_keys)
+      for (const [segment] of directChildren.entries()) {
+        const fullPath = prefix ? `${prefix}.${segment}` : segment;
+        if (allKeys.includes(fullPath)) {
+          directChildren.get(segment)!.isPrefixKey = true;
+        }
+      }
 
       const result: TableRow[] = [];
       
-      for (const [segment, { keys, hasChildren }] of Array.from(directChildren.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
+      for (const [segment, { keys, hasChildren, isPrefixKey }] of Array.from(directChildren.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
         const fullPath = prefix ? `${prefix}.${segment}` : segment;
         
         if (hasChildren) {
@@ -165,6 +173,14 @@ export default function Home() {
             type: prefix ? 'subcategory' : 'category',
             label: segment,
             children,
+          });
+        } else if (isPrefixKey && keys.length === 0 && prefix === '') {
+          // Empty top-level category (exists in DB but has no descendant keys)
+          result.push({
+            id: fullPath,
+            type: 'category',
+            label: segment,
+            children: [],
           });
         } else {
           // Only leaf keys
@@ -275,6 +291,7 @@ export default function Home() {
     try {
       await trpc.deleteByKey.mutate({ key });
       await mutate("messages");
+      await mutate("allKeys");
     } catch (error) {
       console.error("Error deleting key:", error);
       alert("Failed to delete key");
@@ -359,6 +376,7 @@ export default function Home() {
         await Promise.all(deletePromises);
         setSelectedKeys(new Set());
         await mutate("messages");
+        await mutate("allKeys");
       } catch (error) {
         console.error("Error deleting messages:", error);
         alert("Failed to delete selected messages");
@@ -367,13 +385,25 @@ export default function Home() {
   }, [selectedKeys]);
 
   const handleDeleteCategory = useCallback(async (categoryLabel: string, leafKeys: string[]) => {
-    if (confirm(`Are you sure you want to delete the category "${categoryLabel}" and all ${leafKeys.length} key(s) within it?`)) {
+    const confirmMessage = leafKeys.length > 0 
+      ? `Are you sure you want to delete the category "${categoryLabel}" and all ${leafKeys.length} key(s) within it?`
+      : `Are you sure you want to delete the empty category "${categoryLabel}"?`;
+    
+    if (confirm(confirmMessage)) {
       try {
-        const deletePromises = leafKeys.map((key) => 
-          trpc.deleteByKey.mutate({ key })
-        );
-        await Promise.all(deletePromises);
+        // Delete the category key itself (this will recursively delete all descendant keys)
+        await trpc.deleteByKey.mutate({ key: categoryLabel });
+        
+        // Also delete any leaf keys individually (in case they weren't caught by recursive delete)
+        if (leafKeys.length > 0) {
+          const deletePromises = leafKeys.map((key) => 
+            trpc.deleteByKey.mutate({ key })
+          );
+          await Promise.all(deletePromises);
+        }
+        
         await mutate("messages");
+        await mutate("allKeys");
       } catch (error) {
         console.error("Error deleting category:", error);
         alert("Failed to delete category");
