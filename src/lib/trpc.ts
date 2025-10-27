@@ -3,6 +3,7 @@ import superjson from "superjson";
 import { z } from "zod";
 import type { Kysely } from "kysely";
 import type { DB } from "@/db/types";
+import { libreTranslate } from "@/lib/libretranslate-client";
 
 type Context = {
   db: Kysely<DB>;
@@ -504,6 +505,34 @@ export const appRouter = router({
         allLocales: Array.from(allLocales),
         keyCompleteness: keyCompletenessData,
       };
+    }),
+
+  // Translate text using LibreTranslate
+  translateText: publicProcedure
+    .input(
+      z.object({
+        text: z.union([z.string(), z.array(z.string())]),
+        target: z.string(),
+        source: z.string().optional().default("en"),
+        format: z.enum(["text", "html"]).optional().default("text"),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { text, target, source, format } = input;
+
+      try {
+        const result = await libreTranslate.translate.postTranslate({
+          q: text,
+          source,
+          target,
+          format,
+        });
+
+        return result;
+      } catch (error) {
+        console.error("Translation error:", error);
+        throw new Error("Failed to translate text");
+      }
     }),
 });
 

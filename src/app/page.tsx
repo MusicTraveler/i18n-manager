@@ -300,6 +300,7 @@ export default function Home() {
 
   const categoryRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const [lastExpandedCategory, setLastExpandedCategory] = useState<string | null>(null);
+  const hasInitializedExpandedCategories = useRef(false);
 
   const toggleCategory = useCallback((categoryId: string) => {
     setExpandedCategories((prev) => {
@@ -333,14 +334,16 @@ export default function Home() {
   }, [lastExpandedCategory]);
 
   // Initialize expanded categories - start collapsed for better performance
-  useMemo(() => {
-    if (filteredTableData.length > 0 && expandedCategories.size === 0) {
+  useEffect(() => {
+    if (!hasInitializedExpandedCategories.current && tableData.length > 0) {
       // Start with just the first category expanded
-      if (filteredTableData.length > 0) {
-        setExpandedCategories(new Set([filteredTableData[0].id]));
+      const firstCategoryId = tableData[0]?.id;
+      if (firstCategoryId) {
+        setExpandedCategories(new Set([firstCategoryId]));
+        hasInitializedExpandedCategories.current = true;
       }
     }
-  }, [filteredTableData, expandedCategories.size]);
+  }, [tableData]);
 
   return (
     <div className="bp6-dark" style={{ minHeight: "100vh" }}>
@@ -459,7 +462,7 @@ export default function Home() {
                           />
                         )}
                       </div>
-                      <Collapse isOpen={isExpanded} keepChildrenMounted={false} transitionDuration={150}>
+                      <Collapse isOpen={isExpanded} keepChildrenMounted={false} transitionDuration={50}>
                         {isExpanded && topLevelNode.children && (
                           <div style={{ padding: "0" }}>
                             <HierarchicalTable

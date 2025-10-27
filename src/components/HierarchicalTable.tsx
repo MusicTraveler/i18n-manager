@@ -68,6 +68,7 @@ const HierarchicalTableComponent = ({
       cell: ({ row, getValue }) => {
         const type = row.original.type;
         const canExpand = row.getCanExpand();
+        const fullKey = row.original.fullKey;
         
         return (
           <div 
@@ -83,6 +84,20 @@ const HierarchicalTableComponent = ({
               >
                 {row.getIsExpanded() ? '▼' : '▶'}
               </button>
+            )}
+            {type === 'key' && fullKey && (
+              <Button
+                small
+                icon="clipboard"
+                minimal
+                intent="none"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigator.clipboard.writeText(fullKey);
+                }}
+                title={`Copy "${fullKey}" to clipboard`}
+                style={{ marginLeft: "-16px" }}
+              />
             )}
             <span className={styles[`${type}Label`]}>{getValue() as string}</span>
             {type === 'category' && onAddRow && (

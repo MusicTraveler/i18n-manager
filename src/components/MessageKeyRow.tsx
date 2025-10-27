@@ -1,7 +1,11 @@
 import type { Message } from "@/lib/client";
 import type { KeyboardEvent } from "react";
-import { Checkbox } from "@blueprintjs/core";
+import { Checkbox, Button } from "@blueprintjs/core";
 import styles from "./MessageKeyRow.module.css";
+
+const handleCopyToClipboard = (fullKey: string) => {
+  navigator.clipboard.writeText(fullKey);
+};
 
 interface MessageKeyRowProps {
   fullKey: string;
@@ -39,7 +43,20 @@ export function MessageKeyRow({
       {/* Frozen Key Column */}
       <td className={styles.frozenKeyCell}>
         <div className={styles.keyCellContent}>
-          <code className={styles.keyName}>{keyName}</code>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <Button
+              minimal
+              small
+              icon="clipboard"
+              title={`Copy "${fullKey}" to clipboard`}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleCopyToClipboard(fullKey);
+              }}
+              style={{ marginLeft: "-16px" }}
+            />
+            <code className={styles.keyName}>{keyName}</code>
+          </div>
           {missingLocales.length > 0 && (
             <span
               className={styles.missingBadge}
