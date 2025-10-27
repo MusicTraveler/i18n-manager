@@ -54,6 +54,14 @@
   border-right: 2px solid #405364;
 }
 
+.actionsHeader {
+  padding: 12px 8px;
+  text-align: center;
+  color: white;
+  font-weight: bold;
+  width: 90px;
+}
+
 .tableRow {
   border-bottom: 1px solid #405364;
 }
@@ -135,6 +143,13 @@
   width: 250px;
   max-width: 250px;
   overflow: hidden;
+}
+
+.actionsCell {
+  padding: 8px;
+  vertical-align: middle;
+  text-align: center;
+  width: 90px;
 }
 
 .localeContent {

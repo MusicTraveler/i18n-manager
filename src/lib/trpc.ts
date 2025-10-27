@@ -423,16 +423,35 @@ export const appRouter = router({
         return { success: false, message: "Key not found" };
       }
 
-      // Delete all translations for this key
+      // Recursively get all descendant key IDs
+      const getAllDescendantKeyIds = async (parentId: number): Promise<number[]> => {
+        const children = await db
+          .selectFrom("translation_keys")
+          .select("id")
+          .where("parent_id", "=", parentId)
+          .execute();
+
+        const descendantIds = [parentId];
+        for (const child of children) {
+          const childDescendants = await getAllDescendantKeyIds(child.id);
+          descendantIds.push(...childDescendants);
+        }
+
+        return descendantIds;
+      };
+
+      const allKeyIds = await getAllDescendantKeyIds(keyId);
+
+      // Delete all translations for all descendant keys
       await db
         .deleteFrom("translations")
-        .where("key_id", "=", keyId)
+        .where("key_id", "in", allKeyIds)
         .execute();
 
-      // Delete the translation key itself (and any orphaned parent keys)
+      // Delete all descendant translation keys
       await db
         .deleteFrom("translation_keys")
-        .where("id", "=", keyId)
+        .where("id", "in", allKeyIds)
         .execute();
 
       return { success: true };

@@ -11,6 +11,7 @@ import { HierarchicalTable } from "@/components/HierarchicalTable";
 import { MessageDialog } from "@/components/MessageDialog";
 import { ImportMessagesDialog } from "@/components/ImportMessagesDialog";
 import { AddLanguageDialog } from "@/components/AddLanguageDialog";
+import { AddKeyDialog } from "@/components/AddKeyDialog";
 
 const fetcher = async (): Promise<Message[]> => {
   const data = await trpc.list.query({});
@@ -40,8 +41,10 @@ export default function Home() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isAddLanguageDialogOpen, setIsAddLanguageDialogOpen] = useState(false);
+  const [isAddKeyDialogOpen, setIsAddKeyDialogOpen] = useState(false);
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
   const [parentKey, setParentKey] = useState<string>("");
+  const [addKeyParentKey, setAddKeyParentKey] = useState<string>("");
   const [filterKey, setFilterKey] = useState("");
   const [filterLocale, setFilterLocale] = useState("");
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
@@ -52,7 +55,14 @@ export default function Home() {
   // Get all unique locales
   const allLocales = useMemo(() => {
     const locales = new Set(messages.map((m) => m.locale));
-    return Array.from(locales).sort();
+    const sorted = Array.from(locales).sort();
+    // Put English first
+    const englishIndex = sorted.indexOf('en');
+    if (englishIndex > 0) {
+      const en = sorted.splice(englishIndex, 1)[0];
+      return [en, ...sorted];
+    }
+    return sorted;
   }, [messages]);
 
   // Transform messages into hierarchical structure for TanStack Table
@@ -245,6 +255,53 @@ export default function Home() {
     setIsDialogOpen(true);
   }, []);
 
+  const handleAddKey = useCallback((parentKey: string) => {
+    setAddKeyParentKey(parentKey);
+    setIsAddKeyDialogOpen(true);
+  }, []);
+
+  const handleDeleteKey = useCallback(async (key: string) => {
+    try {
+      await trpc.deleteByKey.mutate({ key });
+      await mutate("messages");
+    } catch (error) {
+      console.error("Error deleting key:", error);
+      alert("Failed to delete key");
+    }
+  }, []);
+
+  const handleUpdateMessage = useCallback(async (key: string, locale: string, value: string) => {
+    try {
+      // Check if message exists
+      const existingMessages = messages.filter(m => m.key === key && m.locale === locale);
+      
+      if (existingMessages.length > 0) {
+        // Update existing message
+        const messageToUpdate = existingMessages[0];
+        await trpc.update.mutate({
+          id: messageToUpdate.id,
+          key: messageToUpdate.key,
+          locale: messageToUpdate.locale,
+          message: value,
+        });
+      } else {
+        // Create new message
+        await trpc.create.mutate({
+          key,
+          locale,
+          message: value,
+        });
+      }
+      
+      await mutate("messages");
+      return true;
+    } catch (error) {
+      console.error("Error updating message:", error);
+      alert("Failed to update message");
+      return false;
+    }
+  }, [messages]);
+
   const handleRowSelect = useCallback((fullKey: string, isSelected: boolean) => {
     setSelectedKeys((prev) => {
       const newSet = new Set(prev);
@@ -297,6 +354,21 @@ export default function Home() {
       }
     }
   }, [selectedKeys]);
+
+  const handleDeleteCategory = useCallback(async (categoryLabel: string, leafKeys: string[]) => {
+    if (confirm(`Are you sure you want to delete the category "${categoryLabel}" and all ${leafKeys.length} key(s) within it?`)) {
+      try {
+        const deletePromises = leafKeys.map((key) => 
+          trpc.deleteByKey.mutate({ key })
+        );
+        await Promise.all(deletePromises);
+        await mutate("messages");
+      } catch (error) {
+        console.error("Error deleting category:", error);
+        alert("Failed to delete category");
+      }
+    }
+  }, []);
 
   const categoryRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const [lastExpandedCategory, setLastExpandedCategory] = useState<string | null>(null);
@@ -449,17 +521,30 @@ export default function Home() {
                           )}
                         </button>
                         {topLevelNode.type === 'category' && (
-                          <Button
-                            small
-                            icon="add"
-                            minimal
-                            intent="none"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleAddRow(topLevelNode.label);
-                            }}
-                            title="Add key to this category"
-                          />
+                          <>
+                            <Button
+                              small
+                              icon="trash"
+                              minimal
+                              intent="danger"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteCategory(topLevelNode.label, leafKeys);
+                              }}
+                              title="Delete entire category"
+                            />
+                            <Button
+                              small
+                              icon="add-column-right"
+                              minimal
+                              intent="none"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleAddRow("");
+                              }}
+                              title="Add new top-level category"
+                            />
+                          </>
                         )}
                       </div>
                       <Collapse isOpen={isExpanded} keepChildrenMounted={false} transitionDuration={50}>
@@ -472,7 +557,10 @@ export default function Home() {
                               selectAllChecked={selectedCount === leafKeys.length && leafKeys.length > 0}
                               selectAllIndeterminate={selectedCount > 0 && selectedCount < leafKeys.length}
                               onEdit={handleEdit}
-                              onAddRow={handleAddRow}
+                              onAddRow={handleAddKey}
+                              onDelete={handleDeleteKey}
+                              onUpdateMessage={handleUpdateMessage}
+                              parentKey={topLevelNode.label}
                               onRowSelect={handleRowSelect}
                               onSelectAll={() => {
                                 if (selectedCount === leafKeys.length) {
@@ -533,6 +621,19 @@ export default function Home() {
         onClose={() => setIsAddLanguageDialogOpen(false)}
         onSuccess={() => {
           console.log("Language added successfully");
+        }}
+      />
+
+      <AddKeyDialog
+        isOpen={isAddKeyDialogOpen}
+        parentKey={addKeyParentKey}
+        allLocales={allLocales}
+        onClose={() => {
+          setIsAddKeyDialogOpen(false);
+          setAddKeyParentKey("");
+        }}
+        onSuccess={() => {
+          console.log("Key added successfully");
         }}
       />
     </div>
