@@ -163,6 +163,19 @@ export const appRouter = router({
       return { success: true };
     }),
 
+  // Get all key paths from translation_keys table
+  getAllKeys: publicProcedure
+    .query(async ({ ctx }) => {
+      const db = ctx.db;
+      
+      const allKeys = await db
+        .selectFrom("translation_key_paths")
+        .select(["id", "full_path as key"])
+        .execute();
+      
+      return allKeys.map(k => k.key).filter((k): k is string => k !== null && k !== undefined);
+    }),
+
   // Get all messages with optional filters
   list: publicProcedure
     .input(

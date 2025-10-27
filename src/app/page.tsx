@@ -18,6 +18,11 @@ const fetcher = async (): Promise<Message[]> => {
   return data;
 };
 
+const keyFetcher = async (): Promise<string[]> => {
+  const data = await trpc.getAllKeys.query();
+  return data;
+};
+
 type KeyRow = {
   fullKey: string;
   category: string;
@@ -51,6 +56,7 @@ export default function Home() {
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
 
   const { data: messages = [], error, isLoading } = useSWR<Message[], Error>("messages", fetcher);
+  const { data: allKeys = [] } = useSWR<string[]>("allKeys", keyFetcher);
 
   // Get all unique locales
   const allLocales = useMemo(() => {
@@ -67,46 +73,51 @@ export default function Home() {
 
   // Transform messages into hierarchical structure for TanStack Table
   const tableData = useMemo(() => {
-    if (!messages.length) return [];
-
-    // Step 1: Build key map and prefix tree
+    // Step 1: Build key map and prefix tree from allKeys
     const keyMap = new Map<string, KeyRow>();
     const prefixTree = new Map<string, Set<string>>(); // prefix -> set of full keys
     
-    for (const msg of messages) {
-      if (!keyMap.has(msg.key)) {
-        const parts = msg.key.split(".");
+    // Build prefix tree from all keys (including those without messages)
+    for (const key of allKeys) {
+      // Add root prefix
+      if (!prefixTree.has('')) {
+        prefixTree.set('', new Set());
+      }
+      prefixTree.get('')!.add(key);
+      
+      // Add all parent prefixes
+      const pathParts = key.split('.');
+      for (let i = 1; i < pathParts.length; i++) {
+        const prefix = pathParts.slice(0, i).join('.');
+        if (!prefixTree.has(prefix)) {
+          prefixTree.set(prefix, new Set());
+        }
+        prefixTree.get(prefix)!.add(key);
+      }
+      
+      // Initialize key map entries
+      if (!keyMap.has(key)) {
+        const parts = key.split(".");
         const category = parts[0];
         const subcategory = parts.length > 2 ? parts.slice(1, -1).join(".") : undefined;
         const keyName = parts[parts.length - 1];
 
-        keyMap.set(msg.key, {
-          fullKey: msg.key,
+        keyMap.set(key, {
+          fullKey: key,
           category,
           subcategory,
           keyName,
           messagesByLocale: new Map(),
           missingLocales: [],
         });
-
-        // Build prefix tree for efficient lookups
-        // Add root prefix
-        if (!prefixTree.has('')) {
-          prefixTree.set('', new Set());
-        }
-        prefixTree.get('')!.add(msg.key);
-        
-        // Add all parent prefixes
-        const pathParts = msg.key.split('.');
-        for (let i = 1; i < pathParts.length; i++) {
-          const prefix = pathParts.slice(0, i).join('.');
-          if (!prefixTree.has(prefix)) {
-            prefixTree.set(prefix, new Set());
-          }
-          prefixTree.get(prefix)!.add(msg.key);
-        }
       }
-      keyMap.get(msg.key)!.messagesByLocale.set(msg.locale, msg);
+    }
+    
+    // Now populate with actual messages
+    for (const msg of messages) {
+      if (keyMap.has(msg.key)) {
+        keyMap.get(msg.key)!.messagesByLocale.set(msg.locale, msg);
+      }
     }
 
     // Calculate missing locales for each key
@@ -182,7 +193,7 @@ export default function Home() {
     console.log('Messages count:', messages.length);
     
     return result;
-  }, [messages, allLocales]);
+  }, [allKeys, messages, allLocales]);
 
   // Filter table data based on filterKey and filterLocale
   const filteredTableData = useMemo(() => {
@@ -548,42 +559,61 @@ export default function Home() {
                         )}
                       </div>
                       <Collapse isOpen={isExpanded} keepChildrenMounted={false} transitionDuration={50}>
-                        {isExpanded && topLevelNode.children && (
+                        {isExpanded && (
                           <div style={{ padding: "0" }}>
-                            <HierarchicalTable
-                              data={topLevelNode.children}
-                              allLocales={allLocales}
-                              selectedKeys={selectedKeys}
-                              selectAllChecked={selectedCount === leafKeys.length && leafKeys.length > 0}
-                              selectAllIndeterminate={selectedCount > 0 && selectedCount < leafKeys.length}
-                              onEdit={handleEdit}
-                              onAddRow={handleAddKey}
-                              onDelete={handleDeleteKey}
-                              onUpdateMessage={handleUpdateMessage}
-                              parentKey={topLevelNode.label}
-                              onRowSelect={handleRowSelect}
-                              onSelectAll={() => {
-                                if (selectedCount === leafKeys.length) {
-                                  // Deselect all in this category
-                                  setSelectedKeys(prev => {
-                                    const newSet = new Set(prev);
-                                    for (const k of leafKeys) {
-                                      newSet.delete(k);
-                                    }
-                                    return newSet;
-                                  });
-                                } else {
-                                  // Select all in this category
-                                  setSelectedKeys(prev => {
-                                    const newSet = new Set(prev);
-                                    for (const k of leafKeys) {
-                                      newSet.add(k);
-                                    }
-                                    return newSet;
-                                  });
-                                }
-                              }}
-                            />
+                            {(topLevelNode.children && topLevelNode.children.length > 0) ? (
+                              <HierarchicalTable
+                                data={topLevelNode.children}
+                                allLocales={allLocales}
+                                selectedKeys={selectedKeys}
+                                selectAllChecked={selectedCount === leafKeys.length && leafKeys.length > 0}
+                                selectAllIndeterminate={selectedCount > 0 && selectedCount < leafKeys.length}
+                                onEdit={handleEdit}
+                                onAddRow={handleAddKey}
+                                onDelete={handleDeleteKey}
+                                onUpdateMessage={handleUpdateMessage}
+                                parentKey={topLevelNode.label}
+                                onRowSelect={handleRowSelect}
+                                onSelectAll={() => {
+                                  if (selectedCount === leafKeys.length) {
+                                    // Deselect all in this category
+                                    setSelectedKeys(prev => {
+                                      const newSet = new Set(prev);
+                                      for (const k of leafKeys) {
+                                        newSet.delete(k);
+                                      }
+                                      return newSet;
+                                    });
+                                  } else {
+                                    // Select all in this category
+                                    setSelectedKeys(prev => {
+                                      const newSet = new Set(prev);
+                                      for (const k of leafKeys) {
+                                        newSet.add(k);
+                                      }
+                                      return newSet;
+                                    });
+                                  }
+                                }}
+                              />
+                            ) : (
+                              <div style={{ padding: "8px 16px", background: "#2b3d52" }}>
+                                <HierarchicalTable
+                                  data={[]}
+                                  allLocales={allLocales}
+                                  selectedKeys={selectedKeys}
+                                  selectAllChecked={false}
+                                  selectAllIndeterminate={false}
+                                  onEdit={handleEdit}
+                                  onAddRow={handleAddKey}
+                                  onDelete={handleDeleteKey}
+                                  onUpdateMessage={handleUpdateMessage}
+                                  parentKey={topLevelNode.label}
+                                  onRowSelect={handleRowSelect}
+                                  onSelectAll={() => {}}
+                                />
+                              </div>
+                            )}
                           </div>
                         )}
                       </Collapse>
